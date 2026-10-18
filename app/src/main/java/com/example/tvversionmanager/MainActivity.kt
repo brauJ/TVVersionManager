@@ -1,3 +1,4 @@
+
 package com.example.tvversionmanager
 
 import android.os.Bundle
@@ -46,6 +47,19 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
             vm.refreshAfterInstall()
         }
 
+    // Abre el desinstalador de Android.
+    // Después de regresar, verifica si la aplicación fue desinstalada.
+    val uninstallLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) {
+            if (!vm.isTargetInstalled()) {
+                vm.installerIntent()?.let(installerLauncher::launch)
+            } else {
+                vm.refreshAfterInstall()
+            }
+        }
+
     LaunchedEffect(Unit) {
         vm.check()
     }
@@ -86,18 +100,18 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            "Aplicación objetivo",
+                            text = "Aplicación objetivo",
                             style = MaterialTheme.typography.titleMedium,
                             color = Color.White
                         )
 
                         Text(
-                            "Paquete: ${PackageRepository.TARGET_PACKAGE}",
+                            text = "Paquete: ${PackageRepository.TARGET_PACKAGE}",
                             color = Color.LightGray
                         )
 
                         Text(
-                            "Nombre detectado: ${
+                            text = "Nombre detectado: ${
                                 state.installed?.label
                                     ?: if (state.relation == VersionRelation.MISSING) {
                                         "No instalada"
@@ -109,12 +123,12 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
                         )
 
                         Text(
-                            "Versión instalada: ${state.installed?.versionName ?: "—"}",
+                            text = "Versión instalada: ${state.installed?.versionName ?: "—"}",
                             color = Color.White
                         )
 
                         Text(
-                            "Versión objetivo: ${PackageRepository.TARGET_VERSION}",
+                            text = "Versión objetivo: ${PackageRepository.TARGET_VERSION}",
                             color = Color.White
                         )
                     }
@@ -134,8 +148,6 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
                     style = MaterialTheme.typography.bodyLarge
                 )
 
-                // Copia local para evitar problemas de smart cast
-                // al acceder a una propiedad delegada.
                 val currentProgress = state.progress
 
                 if (state.busy) {
@@ -227,8 +239,9 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
                         Button(
                             onClick = {
                                 if (currentProgress == 100) {
-                                    vm.installerIntent()
-                                        ?.let(installerLauncher::launch)
+                                    uninstallLauncher.launch(
+                                        vm.uninstallTargetIntent()
+                                    )
                                 } else {
                                     confirmDowngrade = true
                                 }
@@ -238,7 +251,7 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
                         ) {
                             Text(
                                 if (currentProgress == 100) {
-                                    "Abrir instalador (puede rechazar la degradación)"
+                                    "Desinstalar versión superior e instalar 4.34.5"
                                 } else {
                                     "Volver a la versión ${PackageRepository.TARGET_VERSION}"
                                 }
@@ -269,11 +282,10 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
                         },
                         text = {
                             Text(
-                                "Android normalmente no permite degradar una aplicación instalada. " +
-                                    "Para continuar puede ser necesario desinstalarla, lo que puede " +
-                                    "borrar datos locales, sesiones y configuraciones. Descarga y " +
-                                    "valida primero el APK; no se desinstalará nada automáticamente. " +
-                                    "¿Deseas continuar?"
+                                "Para instalar la versión ${PackageRepository.TARGET_VERSION}, " +
+                                    "será necesario desinstalar la versión actual. Esto puede " +
+                                    "borrar datos locales, sesiones y configuraciones. Primero " +
+                                    "se descargará y validará el APK. ¿Deseas continuar?"
                             )
                         },
                         confirmButton = {
@@ -299,9 +311,8 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
                 }
 
                 Text(
-                    text = "La instalación siempre requiere confirmación del sistema. " +
-                        "Para una instalación nueva, configura EXPECTED_SHA256 con una " +
-                        "huella fiable antes de distribuir la app.",
+                    text = "La instalación y desinstalación requieren confirmación del sistema Android. " +
+                        "La compatibilidad de la firma sigue siendo necesaria para actualizar una app existente.",
                     color = Color.Gray,
                     style = MaterialTheme.typography.bodySmall
                 )
