@@ -1,4 +1,3 @@
-
 package com.example.tvversionmanager
 
 import android.os.Bundle
@@ -19,8 +18,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -53,20 +52,16 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
+private fun TVManagerScreen(
+    vm: MainViewModel = viewModel()
+) {
     val state by vm.state.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var confirmDowngrade by remember { mutableStateOf(false) }
 
-    val installPermissionLauncher =
-        rememberLauncherForActivityResult(
-            ActivityResultContracts.StartActivityForResult()
-        ) {
-            vm.refreshAfterInstall()
-        }
-
+    // Se declara primero para que los otros launchers puedan utilizarlo.
     val installerLauncher =
         rememberLauncherForActivityResult(
             ActivityResultContracts.StartActivityForResult()
@@ -74,6 +69,32 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
             vm.refreshAfterInstall()
         }
 
+    // Al volver de Ajustes, intenta instalar automáticamente si ya se
+    // desinstaló el paquete y el APK validado sigue disponible.
+    val installPermissionLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) {
+            if (!vm.isTargetInstalled()) {
+                val intent = vm.installerIntent()
+
+                if (intent != null) {
+                    installerLauncher.launch(intent)
+                } else {
+                    vm.refreshAfterInstall()
+                    Toast.makeText(
+                        context,
+                        "No se pudo abrir el instalador. Comprueba el permiso de instalación.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            } else {
+                vm.refreshAfterInstall()
+            }
+        }
+
+    // Abre la ventana oficial de desinstalación de Android.
+    // Tras volver, espera a que el paquete deje de estar instalado.
     val uninstallLauncher =
         rememberLauncherForActivityResult(
             ActivityResultContracts.StartActivityForResult()
@@ -81,31 +102,33 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
             scope.launch {
                 var removed = false
 
-                // Android puede tardar en actualizar el estado del paquete.
                 for (attempt in 0 until 10) {
                     if (!vm.isTargetInstalled()) {
                         removed = true
                         break
                     }
+
                     delay(500)
                 }
 
                 if (removed) {
                     val intent = vm.installerIntent()
+
                     if (intent != null) {
                         installerLauncher.launch(intent)
                     } else {
                         Toast.makeText(
                             context,
-                            "Revisa el permiso para instalar aplicaciones desconocidas.",
+                            "La aplicación se desinstaló, pero falta el permiso para instalar el APK. Abre los ajustes de instalación.",
                             Toast.LENGTH_LONG
                         ).show()
                     }
                 } else {
                     vm.refreshAfterInstall()
+
                     Toast.makeText(
                         context,
-                        "La aplicación sigue instalada. Comprueba la confirmación de Android.",
+                        "Android no confirmó la desinstalación. Comprueba si aceptaste la ventana de confirmación.",
                         Toast.LENGTH_LONG
                     ).show()
                 }
@@ -116,14 +139,15 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
         vm.check()
     }
 
+    val currentProgress = state.progress
+
     val statusColor = when (state.relation) {
         VersionRelation.SAME -> Green
-        VersionRelation.OLDER, VersionRelation.MISSING -> Blue
+        VersionRelation.OLDER,
+        VersionRelation.MISSING -> Blue
         VersionRelation.NEWER -> Orange
         VersionRelation.UNKNOWN -> Red
     }
-
-    val currentProgress = state.progress
 
     MaterialTheme(
         colorScheme = darkColorScheme(
@@ -143,9 +167,9 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp, vertical = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
-                // Encabezado y logo original
+                // Encabezado y logo
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(14.dp)
@@ -157,18 +181,20 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
                             Text(
                                 "TV",
                                 color = Blue,
-                                fontSize = 25.sp,
+                                fontSize = 24.sp,
                                 fontWeight = FontWeight.ExtraBold
                             )
                             Spacer(Modifier.width(6.dp))
                             Text(
                                 "Version Manager",
                                 color = TextMain,
-                                fontSize = 21.sp,
+                                fontSize = 20.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
+
                         Spacer(Modifier.height(4.dp))
+
                         Text(
                             "Control de versiones",
                             color = TextMuted,
@@ -179,7 +205,9 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
 
                 // Información de la aplicación
                 SectionCard {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(15.dp)
+                    ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -189,11 +217,14 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
                                     color = TextMuted,
                                     fontSize = 12.sp
                                 )
+
                                 Spacer(Modifier.height(5.dp))
+
                                 Text(
-                                    state.installed?.label ?: "MAGIS TV / XUPER TV",
+                                    state.installed?.label
+                                        ?: "MAGIS TV / XUPER TV",
                                     color = TextMain,
-                                    fontSize = 20.sp,
+                                    fontSize = 19.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -231,7 +262,7 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
                     }
                 }
 
-                // Estado actual
+                // Estado de la aplicación
                 SectionCard {
                     Row(
                         verticalAlignment = Alignment.Top,
@@ -264,8 +295,8 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
                         ) {
                             Text(
                                 when (state.relation) {
-                                    VersionRelation.SAME -> "Todo está al día"
-                                    VersionRelation.OLDER -> "Actualización disponible"
+                                    VersionRelation.SAME -> "Versión correcta"
+                                    VersionRelation.OLDER -> "Versión anterior detectada"
                                     VersionRelation.NEWER -> "Versión superior detectada"
                                     VersionRelation.MISSING -> "Aplicación no encontrada"
                                     VersionRelation.UNKNOWN -> "No se pudo verificar"
@@ -287,10 +318,10 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
 
                 // Descarga y validación
                 SectionCard {
-                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(13.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     "Archivo de instalación",
@@ -298,7 +329,9 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
+
                                 Spacer(Modifier.height(4.dp))
+
                                 Text(
                                     when {
                                         state.busy -> "Descargando APK…"
@@ -312,12 +345,11 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
                             }
 
                             Text(
-                                if (state.busy && currentProgress != null) {
-                                    "$currentProgress%"
-                                } else if (currentProgress == 100) {
-                                    "100%"
-                                } else {
-                                    "APK"
+                                when {
+                                    state.busy && currentProgress != null ->
+                                        "$currentProgress%"
+                                    currentProgress == 100 -> "100%"
+                                    else -> "APK"
                                 },
                                 color = if (currentProgress == 100) Green else Blue,
                                 fontWeight = FontWeight.SemiBold,
@@ -359,22 +391,12 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
                         }
 
                         if (currentProgress == 100 && !state.busy) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text(
-                                    "✓",
-                                    color = Green,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    "APK descargado y validado",
-                                    color = Green,
-                                    fontSize = 13.sp
-                                )
-                            }
+                            Text(
+                                "✓ APK descargado y validado",
+                                color = Green,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
 
                         state.error?.let { error ->
@@ -388,14 +410,44 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
                     }
                 }
 
-                // Acción principal según el estado de la app
+                // Acciones según la versión detectada
                 when (state.relation) {
                     VersionRelation.OLDER,
+                    VersionRelation.NEWER -> {
+                        Button(
+                            onClick = {
+                                if (currentProgress == 100) {
+                                    uninstallLauncher.launch(
+                                        vm.uninstallTargetIntent()
+                                    )
+                                } else {
+                                    confirmDowngrade = true
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(54.dp),
+                            enabled = !state.busy,
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Text(
+                                if (currentProgress == 100) {
+                                    "Desinstalar e instalar ${PackageRepository.TARGET_VERSION}"
+                                } else {
+                                    "Descargar versión ${PackageRepository.TARGET_VERSION}"
+                                },
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
                     VersionRelation.MISSING -> {
                         Button(
                             onClick = {
                                 if (currentProgress == 100) {
-                                    vm.installerIntent()?.let(installerLauncher::launch)
+                                    vm.installerIntent()?.let(
+                                        installerLauncher::launch
+                                    )
                                 } else {
                                     vm.download()
                                 }
@@ -417,37 +469,8 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
                         }
                     }
 
-                    VersionRelation.NEWER -> {
-                        Button(
-                            onClick = {
-                                if (currentProgress == 100) {
-                                    uninstallLauncher.launch(vm.uninstallTargetIntent())
-                                } else {
-                                    confirmDowngrade = true
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(54.dp),
-                            enabled = !state.busy,
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Blue
-                            )
-                        ) {
-                            Text(
-                                if (currentProgress == 100) {
-                                    "Desinstalar e instalar ${PackageRepository.TARGET_VERSION}"
-                                } else {
-                                    "Volver a la versión ${PackageRepository.TARGET_VERSION}"
-                                },
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    }
-
                     VersionRelation.SAME -> {
-                        OutlinedButton(
+                        Button(
                             onClick = vm::check,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -471,21 +494,25 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
                     }
                 }
 
-                // Permisos de instalación
+                // Permiso para instalar APK
                 if (state.installPermissionNeeded) {
                     SectionCard {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
                             Text(
                                 "Permiso de instalación necesario",
                                 color = Orange,
                                 fontWeight = FontWeight.SemiBold
                             )
+
                             Text(
                                 "Permite instalar aplicaciones desde TV Version Manager en los ajustes de Android.",
                                 color = TextMuted,
                                 fontSize = 13.sp,
                                 lineHeight = 19.sp
                             )
+
                             Button(
                                 onClick = {
                                     installPermissionLauncher.launch(
@@ -494,20 +521,19 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Abrir ajustes")
+                                Text("Abrir ajustes de instalación")
                             }
                         }
                     }
                 }
 
-                // Acciones secundarias
                 OutlinedButton(
                     onClick = vm::check,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    enabled = !state.busy
+                    enabled = !state.busy,
+                    shape = RoundedCornerShape(14.dp)
                 ) {
                     Text("Volver a comprobar")
                 }
@@ -515,9 +541,10 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
                 HorizontalDivider(color = Color(0xFF263449))
 
                 Text(
-                    "La instalación y desinstalación requieren confirmación de Android. " +
-                        "Si vuelves a una versión anterior, es posible que se borren los datos " +
-                        "locales de la aplicación.",
+                    "Android solicitará confirmar la desinstalación y la instalación. " +
+                        "Desinstalar puede borrar los datos locales de la aplicación. " +
+                        "La comprobación del paquete y la versión no garantiza por sí sola " +
+                        "la autenticidad del APK.",
                     color = TextMuted,
                     fontSize = 11.sp,
                     lineHeight = 17.sp
@@ -530,19 +557,22 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
 
     if (confirmDowngrade) {
         AlertDialog(
-            onDismissRequest = { confirmDowngrade = false },
+            onDismissRequest = {
+                confirmDowngrade = false
+            },
             containerColor = Panel,
             title = {
                 Text(
-                    "Volver a una versión anterior",
+                    "Cambiar versión",
                     color = TextMain
                 )
             },
             text = {
                 Text(
-                    "Se descargará y validará la versión ${PackageRepository.TARGET_VERSION}. " +
-                        "Después tendrás que confirmar la desinstalación de la versión actual " +
-                        "y la instalación del APK. Es posible que pierdas datos locales. ¿Continuar?",
+                    "Se descargará la versión ${PackageRepository.TARGET_VERSION}. " +
+                        "Después podrás confirmar la desinstalación de la versión actual " +
+                        "en Android y proceder con la instalación. La desinstalación puede " +
+                        "borrar datos locales. ¿Deseas continuar?",
                     color = TextMuted
                 )
             },
@@ -553,11 +583,15 @@ private fun TVManagerScreen(vm: MainViewModel = viewModel()) {
                         vm.download()
                     }
                 ) {
-                    Text("Continuar")
+                    Text("Descargar y continuar")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDowngrade = false }) {
+                TextButton(
+                    onClick = {
+                        confirmDowngrade = false
+                    }
+                ) {
                     Text("Cancelar")
                 }
             }
@@ -582,7 +616,6 @@ private fun TVLogo() {
             val stroke = 2.5.dp.toPx()
             val centerX = size.width / 2f
 
-            // Antenas
             drawLine(
                 Blue,
                 Offset(centerX - 5.dp.toPx(), 10.dp.toPx()),
@@ -590,6 +623,7 @@ private fun TVLogo() {
                 stroke,
                 cap = StrokeCap.Round
             )
+
             drawLine(
                 Blue,
                 Offset(centerX + 5.dp.toPx(), 10.dp.toPx()),
@@ -618,12 +652,18 @@ private fun TVLogo() {
 }
 
 @Composable
-private fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
+private fun SectionCard(
+    content: @Composable ColumnScope.() -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Panel),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        colors = CardDefaults.cardColors(
+            containerColor = Panel
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 0.dp
+        )
     ) {
         Column(
             modifier = Modifier.padding(18.dp),
@@ -648,6 +688,7 @@ private fun VersionRow(
             fontSize = 13.sp,
             modifier = Modifier.weight(1f)
         )
+
         Text(
             value,
             color = valueColor,
@@ -658,14 +699,20 @@ private fun VersionRow(
 }
 
 @Composable
-private fun StatusPill(text: String, color: Color) {
+private fun StatusPill(
+    text: String,
+    color: Color
+) {
     Surface(
         shape = RoundedCornerShape(50),
         color = color.copy(alpha = 0.12f)
     ) {
         Text(
             text,
-            modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
+            modifier = Modifier.padding(
+                horizontal = 11.dp,
+                vertical = 7.dp
+            ),
             color = color,
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold
