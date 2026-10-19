@@ -96,47 +96,44 @@ private fun TVManagerScreen(
     // Abre la ventana oficial de desinstalación de Android.
     // Tras volver, espera a que el paquete deje de estar instalado.
     val uninstallLauncher =
-        rememberLauncherForActivityResult(
-            ActivityResultContracts.StartActivityForResult()
-        ) {
-            scope.launch {
-                var removed = false
+    rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        scope.launch {
+            var removed = false
 
-                for (attempt in 0 until 10) {
-                    if (!vm.isTargetInstalled()) {
-                        removed = true
-                        break
-                    }
-
-                    delay(500)
+            repeat(15) {
+                if (!vm.isTargetInstalled()) {
+                    removed = true
+                    return@repeat
                 }
 
-                if (removed) {
-                    val intent = vm.installerIntent()
+                delay(1_000)
+            }
 
-                    if (intent != null) {
-                        installerLauncher.launch(intent)
-                    } else {
-                        Toast.makeText(
-                            context,
-                            "La aplicación se desinstaló, pero falta el permiso para instalar el APK. Abre los ajustes de instalación.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                } else {
-                    vm.refreshAfterInstall()
+            if (!removed) {
+                Toast.makeText(
+                    context,
+                    "La aplicación sigue instalada. Comprueba que confirmaste la desinstalación en Android.",
+                    Toast.LENGTH_LONG
+                ).show()
 
-                    Toast.makeText(
-                        context,
-                        "Android no confirmó la desinstalación. Comprueba si aceptaste la ventana de confirmación.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
+                vm.refreshAfterInstall()
+                return@launch
+            }
+
+            val installIntent = vm.installerIntent()
+
+            if (installIntent != null) {
+                installerLauncher.launch(installIntent)
+            } else {
+                Toast.makeText(
+                    context,
+                    "La aplicación se desinstaló. Activa el permiso para instalar aplicaciones desconocidas y vuelve a intentarlo.",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
-
-    LaunchedEffect(Unit) {
-        vm.check()
     }
 
     val currentProgress = state.progress
