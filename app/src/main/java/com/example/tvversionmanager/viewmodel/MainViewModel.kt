@@ -201,38 +201,42 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * Solicita al sistema Android desinstalar la aplicación objetivo.
      * Android mostrará su propia pantalla de confirmación.
      */
-    fun uninstallTargetIntent(): Intent {
-        return Intent(
-            Intent.ACTION_DELETE,
-            Uri.parse("package:${PackageRepository.TARGET_PACKAGE}")
-        )
+    
+fun uninstallTargetIntent(): Intent {
+    return Intent(
+        Intent.ACTION_UNINSTALL_PACKAGE,
+        Uri.parse("package:${PackageRepository.TARGET_PACKAGE}")
+    ).apply {
+        putExtra(Intent.EXTRA_RETURN_RESULT, true)
     }
+}
 
-    /**
-     * Comprueba si la aplicación objetivo sigue instalada.
-     */
-    fun isTargetInstalled(): Boolean {
-        val pm = getApplication<Application>().packageManager
+fun isTargetInstalled(): Boolean {
+    val context = getApplication<Application>()
 
-        return try {
-            if (Build.VERSION.SDK_INT >= 33) {
-                pm.getPackageInfo(
-                    PackageRepository.TARGET_PACKAGE,
-                    PackageManager.PackageInfoFlags.of(0)
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                pm.getPackageInfo(
-                    PackageRepository.TARGET_PACKAGE,
-                    0
-                )
-            }
-
-            true
-        } catch (_: PackageManager.NameNotFoundException) {
-            false
+    return try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.packageManager.getPackageInfo(
+                PackageRepository.TARGET_PACKAGE,
+                PackageManager.PackageInfoFlags.of(0)
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            context.packageManager.getPackageInfo(
+                PackageRepository.TARGET_PACKAGE,
+                0
+            )
         }
+
+        true
+    } catch (_: PackageManager.NameNotFoundException) {
+        false
+    } catch (_: Exception) {
+        // Un error de consulta no significa que se haya desinstalado.
+        true
     }
+}
+
 
     fun installPermissionIntent(): Intent {
         return Intent(
