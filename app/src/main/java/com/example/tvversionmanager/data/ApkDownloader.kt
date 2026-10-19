@@ -28,7 +28,7 @@ class ApkDownloader(private val context: Context) {
 
         val url = URL(PackageRepository.APK_URL)
         require(url.protocol == "https") {
-            "La URL no usa HTTPS."
+            "La URL no utiliza HTTPS."
         }
 
         val connection = (url.openConnection() as HttpURLConnection).apply {
@@ -43,22 +43,22 @@ class ApkDownloader(private val context: Context) {
         try {
             connection.connect()
 
-            val code = connection.responseCode
-            require(code in 200..299) {
-                "El servidor respondió HTTP $code."
+            val responseCode = connection.responseCode
+            require(responseCode in 200..299) {
+                "El servidor respondió HTTP $responseCode."
             }
 
             val expectedLength = connection.contentLengthLong
-            val available = StatFs(context.cacheDir.absolutePath).availableBytes
+            val availableBytes = StatFs(context.cacheDir.absolutePath).availableBytes
 
-            if (expectedLength > 0 && expectedLength > available) {
+            if (expectedLength > 0 && expectedLength > availableBytes) {
                 throw IllegalStateException(
                     "No hay espacio suficiente para descargar el APK."
                 )
             }
 
             val digest = MessageDigest.getInstance("SHA-256")
-            var total = 0L
+            var totalBytes = 0L
 
             connection.inputStream.use { input ->
                 FileOutputStream(file).use { output ->
@@ -67,29 +67,29 @@ class ApkDownloader(private val context: Context) {
                     while (true) {
                         coroutineContext.ensureActive()
 
-                        val read = input.read(buffer)
-                        if (read < 0) break
+                        val bytesRead = input.read(buffer)
+                        if (bytesRead < 0) break
 
-                        output.write(buffer, 0, read)
-                        digest.update(buffer, 0, read)
-                        total += read
+                        output.write(buffer, 0, bytesRead)
+                        digest.update(buffer, 0, bytesRead)
+                        totalBytes += bytesRead
 
                         val percent = if (expectedLength > 0) {
-                            ((total * 100) / expectedLength)
+                            ((totalBytes * 100) / expectedLength)
                                 .toInt()
                                 .coerceIn(0, 100)
                         } else {
                             null
                         }
 
-                        onProgress(percent, total)
+                        onProgress(percent, totalBytes)
                     }
 
                     output.fd.sync()
                 }
             }
 
-            require(file.length() > 0) {
+            require(file.isFile && file.length() > 0) {
                 "El archivo descargado está vacío."
             }
 
@@ -97,17 +97,19 @@ class ApkDownloader(private val context: Context) {
                 "%02x".format(it)
             }
 
-            // Si se configuró una huella esperada, comprobarla.
-            // Si es null, continuar sin esa comprobación.
-            PackageRepository.EXPECTED_SHA256?.let { expected ->
-                require(hash.equals(expected, ignoreCase = true)) {
-                    "La huella SHA-256 no coincide."
+            // Si se configuró una huella de confianza, debe coincidir.
+            PackageRepository.EXPECTED_SHA256?.let { expectedHash ->
+                require(hash.equals(expectedHash.trim(), ignoreCase = true)) {
+                    "La huella SHA-256 no coincide. Se rechazó el APK."
                 }
             }
 
-            DownloadedApk(file, hash, total)
-
-        } catch (e: Throwable) {
+            DownloadedApk(
+                file = file,
+                sha256 = hash,
+                size = totalBytes
+            )
+        } catch (e: Exception) {
             file.delete()
             throw e
         } finally {
@@ -115,6 +117,14 @@ class ApkDownloader(private val context: Context) {
         }
     }
 
+    /**
+     * Comprueba que el archivo sea un APK reconocible y que su paquete
+     * y versión coincidan con los esperados.
+     *
+     * Esta función no autentica al editor del APK y no compara su firma
+     * con la aplicación instalada. La procedencia debe verificarse
+     * mediante una fuente confiable o una huella SHA-256 confiable.
+     */
     fun validate(file: File): String {
         require(file.isFile && file.length() > 0) {
             "El archivo APK no es válido."
@@ -136,7 +146,7 @@ class ApkDownloader(private val context: Context) {
                 PackageManager.GET_SIGNING_CERTIFICATES
             )
         } ?: throw IllegalArgumentException(
-            "El archivo no se reconoce como un APK válido."
+            "El archivo descargado no se reconoce como un APK válido."
         )
 
         require(info.packageName == PackageRepository.TARGET_PACKAGE) {
@@ -149,55 +159,6 @@ class ApkDownloader(private val context: Context) {
                 "Se esperaba ${PackageRepository.TARGET_VERSION}."
         }
 
-        val installedInfo = try {
-            if (Build.VERSION.SDK_INT >= 33) {
-                pm.getPackageInfo(
-                    PackageRepository.TARGET_PACKAGE,
-                    PackageManager.PackageInfoFlags.of(
-                        PackageManager.GET_SIGNING_CERTIFICATES.toLong()
-                    )
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                pm.getPackageInfo(
-                    PackageRepository.TARGET_PACKAGE,
-                    PackageManager.GET_SIGNING_CERTIFICATES
-                )
-            }
-        } catch (_: PackageManager.NameNotFoundException) {
-            null
-        }
-
-        if (installedInfo != null) {
-            val archiveSigners = info.signingInfo
-                ?.apkContentsSigners
-                ?.map { it.toCharsString() }
-                ?.toSet()
-                .orEmpty()
-
-            val installedSigners = installedInfo.signingInfo
-                ?.apkContentsSigners
-                ?.map { it.toCharsString() }
-                ?.toSet()
-                .orEmpty()
-
-            require(
-                archiveSigners.isNotEmpty() &&
-                    installedSigners.isNotEmpty() &&
-                    archiveSigners == installedSigners
-            ) {
-                "La firma del APK no coincide con la aplicación instalada. " +
-                    "Se rechazó el archivo."
-            }
-        }
-
-        // Para instalaciones nuevas se permite continuar sin SHA-256.
-        // Android seguirá aplicando sus propias reglas de instalación y firma.
-        return if (PackageRepository.EXPECTED_SHA256 == null) {
-            "APK válido: paquete y versión coinciden. " +
-                "No se verificó la procedencia mediante SHA-256."
-        } else {
-            "APK válido: paquete, versión y SHA-256 comprobados."
-        }
+        return "APK reconocido. Paquete y versión coinciden."
     }
 }
