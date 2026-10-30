@@ -8,9 +8,11 @@ type RecordRow = {
   employee:Employee; status:string; manualReason?:string|null;
   creator?:{id:string;fullName:string;email:string}|null;
   auditTrail?:{
-    action:string; reason?:string|null; createdAt:string;
-    user?:{id:string;fullName:string;email:string}|null;
-  }[];
+  action:string;
+  reason?:string|null;
+  createdAt:string;
+  user?:{id:string;fullName:string;email:string}|null;
+}[];
 };
 type UserRow = { id:string; email:string; fullName:string; status:'ACTIVE'|'DISABLED'; isSuperAdmin:boolean; createdAt:string; permissions:{code:string;description:string}[] };
 type DeviceEventRow = {
@@ -36,23 +38,144 @@ type Shift = {
 };
 const fmt = (d:string) => new Date(d).toLocaleString('es-CL', { dateStyle:'short', timeStyle:'medium' });
 
+type AgentStatus = {
+  status: 'ready' | 'starting' | 'error';
+  readerConnected: boolean;
+  registeredTemplates: number;
+  pendingEvents: number;
+  lastEvent?: {
+    employeeName: string;
+    occurredAt: string;
+    result: 'ACCEPTED' | 'PENDING_REVIEW' | 'QUEUED' | 'REJECTED';
+    message?: string;
+  } | null;
+};
+
+const LOCAL_AGENT_URL = 'http://127.0.0.1:17865';
+
 function AttendanceTerminal() {
+  const [agent, setAgent] = useState<AgentStatus | null>(null);
+  const [connectionError, setConnectionError] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const checkAgent = async () => {
+      try {
+        const response = await fetch(`${LOCAL_AGENT_URL}/status`, {
+          method: 'GET',
+          cache: 'no-store',
+          mode: 'cors'
+        });
+
+        if (!response.ok) {
+          throw new Error('Agente no disponible');
+        }
+
+        const data: AgentStatus = await response.json();
+
+        if (active) {
+          setAgent(data);
+          setConnectionError(false);
+        }
+      } catch {
+        if (active) {
+          setAgent(null);
+          setConnectionError(true);
+        }
+      }
+    };
+
+    void checkAgent();
+    const timer = window.setInterval(() => void checkAgent(), 2000);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const connected = agent?.readerConnected === true;
+  const lastEvent = agent?.lastEvent;
+
+  const resultLabel = (result?: string) => {
+    switch (result) {
+      case 'ACCEPTED':
+        return 'Marcación registrada correctamente';
+      case 'PENDING_REVIEW':
+        return 'Marcación recibida, pendiente de revisión';
+      case 'QUEUED':
+        return 'Marcación guardada; pendiente de envío';
+      case 'REJECTED':
+        return 'Marcación rechazada por el servidor';
+      default:
+        return 'Procesando marcación';
+    }
+  };
+
   return (
     <main className="terminal-shell">
       <section className="terminal-card">
-        <div className="terminal-mark"><Fingerprint size={42} /></div>
+        <div className="terminal-mark">
+          <Fingerprint size={42} />
+        </div>
+
         <p className="terminal-eyebrow">CONTROL DE ASISTENCIA</p>
         <h1>Marcación de trabajadores</h1>
+
         <div className="terminal-status">
-          <span className="terminal-dot" />
-          <strong>Esperando huella</strong>
+          <span
+            className="terminal-dot"
+            style={{
+              background: connected ? '#16a34a' : '#dc2626'
+            }}
+          />
+          <strong>
+            {!agent
+              ? 'Conectando con el terminal...'
+              : connected
+                ? 'Esperando huella'
+                : 'Lector no conectado'}
+          </strong>
         </div>
+
         <p className="terminal-message">
-          Coloca tu dedo en el lector para registrar tu asistencia.
+          {connected
+            ? 'Coloca tu dedo en el lector para registrar tu asistencia.'
+            : 'Verifica que el lector ZKTeco esté conectado y que AsistenciaAgent esté ejecutándose.'}
         </p>
-        <p className="terminal-warning">
-          Lector pendiente de conexión. Esta pantalla aún no confirma marcaciones.
-        </p>
+
+        {connectionError && (
+          <p className="terminal-warning">
+            No se pudo establecer comunicación con el servicio local de Windows.
+          </p>
+        )}
+
+        {agent && (
+          <div style={{ marginTop: 24 }}>
+            <p>
+              <strong>Plantillas registradas:</strong>{' '}
+              {agent.registeredTemplates}
+            </p>
+            <p>
+              <strong>Marcaciones pendientes:</strong>{' '}
+              {agent.pendingEvents}
+            </p>
+          </div>
+        )}
+
+        {lastEvent && (
+          <div className="panel" style={{ marginTop: 24, textAlign: 'left' }}>
+            <h3>Última marcación</h3>
+            <p><strong>Trabajador:</strong> {lastEvent.employeeName}</p>
+            <p>
+              <strong>Fecha:</strong>{' '}
+              {new Date(lastEvent.occurredAt).toLocaleString('es-CL')}
+            </p>
+            <p><strong>Resultado:</strong> {resultLabel(lastEvent.result)}</p>
+            {lastEvent.message && <p>{lastEvent.message}</p>}
+          </div>
+        )}
       </section>
     </main>
   );
@@ -673,11 +796,99 @@ export default function App() {
     return true;
   }), [records, attendanceStatus, attendanceEmployee, attendanceFrom, attendanceTo]);
 
+  
   async function reviewAttendance(record: RecordRow, status: 'CONFIRMED'|'VOIDED') {
     if (record.status !== 'PENDING_REVIEW') {
       setError('Solo se pueden revisar marcaciones pendientes.');
       return;
     }
+
+    const labels: Record<string, string> = {
+      ENTRY: 'Entrada',
+      BREAK_START: 'Salida a colación',
+      BREAK_END: 'Regreso de colación',
+      EXIT: 'Salida final'
+    };
+
+    let selectedType = record.type;
+
+    if (status === 'CONFIRMED') {
+      const options = [
+        'ENTRY',
+        'BREAK_START',
+        'BREAK_END',
+        'EXIT'
+      ];
+
+      const selection = window.prompt(
+        `Selecciona el tipo correcto de marcación:\n\n` +
+        `1. Entrada\n` +
+        `2. Salida a colación\n` +
+        `3. Regreso de colación\n` +
+        `4. Salida final\n\n` +
+        `Tipo actual: ${labels[record.type] || record.type}\n\n` +
+        `Escribe un número del 1 al 4:`,
+        String(options.indexOf(record.type) + 1)
+      );
+
+      if (selection === null) return;
+
+      const index = Number(selection) - 1;
+
+      if (!Number.isInteger(index) || index < 0 || index >= options.length) {
+        setError('Selecciona un tipo válido entre 1 y 4.');
+        return;
+      }
+
+      selectedType = options[index];
+    }
+
+    const action = status === 'CONFIRMED' ? 'confirmar' : 'anular';
+
+    const reason = window.prompt(
+      `Motivo obligatorio para ${action} la marcación de ` +
+      `${record.employee?.firstName || ''} ${record.employee?.lastName || ''}. ` +
+      `Escribe al menos 8 caracteres:`
+    );
+
+    if (reason === null) return;
+
+    if (reason.trim().length < 8) {
+      setError('El motivo debe tener al menos 8 caracteres.');
+      return;
+    }
+
+    if (
+      status === 'VOIDED' &&
+      !window.confirm('¿Confirmas la anulación? Esta acción quedará registrada en la auditoría.')
+    ) return;
+
+    setReviewBusy(record.id);
+    setError('');
+    setNotice('');
+
+    try {
+      await api(`/attendance/${encodeURIComponent(record.id)}/review`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status,
+          reason: reason.trim(),
+          type: selectedType
+        })
+      });
+
+      setNotice(
+        `Marcación ${status === 'CONFIRMED' ? 'confirmada' : 'anulada'} correctamente.`
+      );
+
+      await load();
+    } catch (err: any) {
+      setError(`No se pudo ${action} la marcación. ${err.message || ''}`);
+    } finally {
+      setReviewBusy('');
+    }
+  }
+
 
     const action = status === 'CONFIRMED' ? 'confirmar' : 'anular';
     const reason = window.prompt(
@@ -1160,7 +1371,13 @@ function Records({rows,onReview,reviewBusy='',showReason=false}:{rows:RecordRow[
     <td>{labels[r.type]||r.type}</td><td>{fmt(r.occurredAt)}</td><td>{methods[r.method]||r.method}</td>
     <td><span className={`status ${r.status==='PENDING_REVIEW'?'status-pending':r.status==='VOIDED'?'status-voided':''}`}>{statuses[r.status]||r.status}</span></td>
     {showReason&&<>
-      <td className="reason-cell">{r.manualReason||'—'}</td>
+      <td className="reason-cell">
+  {r.manualReason ||
+    r.auditTrail?.find(
+      log => log.action === 'BIOMETRIC_PUNCH_PENDING_REVIEW'
+    )?.reason ||
+    '—'}
+</td>
       <td className="reason-cell">
         {(() => {
           const createdEvent = r.auditTrail?.find(log => log.action === 'ATTENDANCE_MANUAL_CREATED');
