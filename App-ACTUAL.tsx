@@ -1,17 +1,23 @@
-root@gyquoxm8:/home/asistencia# cd /home/asistencia
-
-echo "========== APP.TSX =========="
-cat apps/web/src/App.tsx
-
-echo
-echo "========== STYLE.CSS =========="
-cat apps/web/src/style.css
-========== APP.TSX ==========
 import { useEffect, useMemo, useState } from 'react';
 import { Activity, BadgeCheck, CalendarClock, Download, Fingerprint, LayoutDashboard, LogIn, LogOut, Search, ShieldCheck, Users, Clock3, RefreshCw } from 'lucide-react';
 
 const API = '/api';
 type Employee = { id:string; rut:string; firstName:string; lastName:string; position?:string|null; status:string };
+type OvertimeRow = {
+  id: string;
+  workDate: string;
+  startAt: string;
+  endAt: string;
+  reason: string;
+  status: 'ACTIVE' | 'CANCELLED';
+  effectiveStatus: 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
+  createdAt: string;
+  cancelledAt?: string | null;
+  cancellationReason?: string | null;
+  employee: Employee;
+  authorizedBy: { id: string; fullName: string; email: string };
+  cancelledBy?: { id: string; fullName: string; email: string } | null;
+};
 type RecordRow = {
   id:string; type:string; method:string; occurredAt:string;
   employee:Employee; status:string; manualReason?:string|null;
@@ -199,7 +205,7 @@ export default function App() {
   const [email,setEmail] = useState('');
   const [password,setPassword] = useState('');
   const [error,setError] = useState('');
-  const [tab,setTab] = useState<'overview'|'employees'|'attendance'|'deviceEvents'|'users'|'organization'|'shifts'>('overview');
+  const [tab,setTab] = useState<'overview'|'employees'|'attendance'|'deviceEvents'|'users'|'organization'|'shifts'|'overtime'>('overview');
   const [employees,setEmployees] = useState<Employee[]>([]);
   const [records,setRecords] = useState<RecordRow[]>([]);
   const [deviceEvents,setDeviceEvents] = useState<DeviceEventRow[]>([]);
@@ -238,6 +244,18 @@ export default function App() {
   const [attendanceStatus,setAttendanceStatus] = useState('ALL');
   const [attendanceEmployee,setAttendanceEmployee] = useState('ALL');
   const [reviewBusy,setReviewBusy] = useState('');
+  const [overtimeRows, setOvertimeRows] = useState<OvertimeRow[]>([]);
+const [overtimeBusy, setOvertimeBusy] = useState(false);
+const [overtimeForm, setOvertimeForm] = useState({
+  employeeId: '',
+  workDate: new Date().toLocaleDateString('en-CA'),
+  startAt: '18:00',
+  endAt: '20:00',
+  reason: ''
+});
+const [overtimeFrom, setOvertimeFrom] = useState('');
+const [overtimeTo, setOvertimeTo] = useState('');
+const [overtimeEmployee, setOvertimeEmployee] = useState('ALL');
 
   async function api(path:string, init:RequestInit={}) {
     const res = await fetch(`${API}${path}`, { ...init, headers: { 'Content-Type':'application/json', ...(token ? { Authorization:`Bearer ${token}` } : {}), ...(init.headers || {}) } });
@@ -456,6 +474,127 @@ export default function App() {
       setShiftBusy(false);
     }
   }
+
+  async function loadOvertime() {
+  if (!token) return;
+
+  setOvertimeBusy(true);
+  setError('');
+
+  try {
+    const params = new URLSearchParams();
+
+    if (overtimeFrom) params.set('from', overtimeFrom);
+    if (overtimeTo) params.set('to', overtimeTo);
+    if (overtimeEmployee !== 'ALL') {
+      params.set('employeeId', overtimeEmployee);
+    }
+
+    const data = await api(`/overtime?${params.toString()}`);
+    setOvertimeRows(data);
+  } catch (err: any) {
+    setError(`No se pudieron cargar las autorizaciones. ${err.message || ''}`);
+  } finally {
+    setOvertimeBusy(false);
+  }
+}
+
+async function createOvertime(e: React.FormEvent) {
+  e.preventDefault();
+
+  const reason = overtimeForm.reason.trim();
+
+  if (reason.length < 8) {
+    setError('El motivo debe tener al menos 8 caracteres.');
+    return;
+  }
+
+  if (!overtimeForm.employeeId) {
+    setError('Selecciona un trabajador.');
+    return;
+  }
+
+  const startAt = new Date(
+    `${overtimeForm.workDate}T${overtimeForm.startAt}:00`
+  );
+  const endAt = new Date(
+    `${overtimeForm.workDate}T${overtimeForm.endAt}:00`
+  );
+
+  if (
+    Number.isNaN(startAt.getTime()) ||
+    Number.isNaN(endAt.getTime()) ||
+    endAt <= startAt
+  ) {
+    setError('El horario de término debe ser posterior al de inicio.');
+    return;
+  }
+
+  setOvertimeBusy(true);
+  setError('');
+  setNotice('');
+
+  try {
+    await api('/overtime', {
+      method: 'POST',
+      body: JSON.stringify({
+        employeeId: overtimeForm.employeeId,
+        workDate: overtimeForm.workDate,
+        startAt: startAt.toISOString(),
+        endAt: endAt.toISOString(),
+        reason
+      })
+    });
+
+    setNotice('Autorización de horas extraordinarias creada correctamente.');
+
+    setOvertimeForm(old => ({
+      ...old,
+      reason: ''
+    }));
+
+    await loadOvertime();
+  } catch (err: any) {
+    setError(`No se pudo crear la autorización. ${err.message || ''}`);
+  } finally {
+    setOvertimeBusy(false);
+  }
+}
+
+async function cancelOvertime(row: OvertimeRow) {
+  const reason = window.prompt(
+    `Motivo de anulación para ${row.employee.firstName} ${row.employee.lastName}:`
+  );
+
+  if (reason === null) return;
+
+  if (reason.trim().length < 8) {
+    setError('El motivo de anulación debe tener al menos 8 caracteres.');
+    return;
+  }
+
+  if (!window.confirm('¿Confirmas la anulación de esta autorización?')) {
+    return;
+  }
+
+  setOvertimeBusy(true);
+  setError('');
+  setNotice('');
+
+  try {
+    await api(`/overtime/${encodeURIComponent(row.id)}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: reason.trim() })
+    });
+
+    setNotice('Autorización anulada. El historial se conservó.');
+    await loadOvertime();
+  } catch (err: any) {
+    setError(`No se pudo anular la autorización. ${err.message || ''}`);
+  } finally {
+    setOvertimeBusy(false);
+  }
+}
 
   async function createDepartment(e:React.FormEvent) {
     e.preventDefault();
@@ -718,13 +857,17 @@ export default function App() {
   }
 
   useEffect(()=>{
-    if (!token) return;
-    if (tab === 'users') void loadUsers();
-    else if (tab === 'deviceEvents') void loadDeviceEvents();
-    else if (tab === 'organization') void loadOrganization();
-    else if (tab === 'shifts') void loadShifts();
-    else void load();
-  },[token,tab]);
+  if (!token) return;
+  if (tab === 'users') void loadUsers();
+  else if (tab === 'deviceEvents') void loadDeviceEvents();
+  else if (tab === 'organization') void loadOrganization();
+  else if (tab === 'shifts') void loadShifts();
+  else if (tab === 'overtime') {
+    void load();
+    void loadOvertime();
+  }
+  else void load();
+},[token,tab]);
   const todayCount = useMemo(()=>records.filter(r=>new Date(r.occurredAt).toDateString()===new Date().toDateString()).length,[records]);
   async function createEmployee(e:React.FormEvent) {
     e.preventDefault(); setNotice('');
@@ -805,7 +948,7 @@ export default function App() {
     return true;
   }), [records, attendanceStatus, attendanceEmployee, attendanceFrom, attendanceTo]);
 
-
+  
   async function reviewAttendance(record: RecordRow, status: 'CONFIRMED'|'VOIDED') {
     if (record.status !== 'PENDING_REVIEW') {
       setError('Solo se pueden revisar marcaciones pendientes.');
@@ -912,6 +1055,12 @@ export default function App() {
       <button className={tab==='users'?'nav active':'nav'} onClick={()=>setTab('users')}><Users size={18}/> Usuarios</button>
       <button className={tab==='organization'?'nav active':'nav'} onClick={()=>setTab('organization')}><LayoutDashboard size={18}/> Organización</button>
       <button className={tab==='shifts'?'nav active':'nav'} onClick={()=>setTab('shifts')}><Clock3 size={18}/> Turnos</button>
+      <button
+  className={tab === 'overtime' ? 'nav active' : 'nav'}
+  onClick={() => setTab('overtime')}
+>
+  <Clock3 size={18}/> Horas extraordinarias
+</button>
       <div className="sidebar-bottom"><div className="secure-note"><ShieldCheck size={18}/><span><b>Panel protegido</b><small>Revisa los permisos del servidor antes de producción.</small></span></div><button className="nav" onClick={logout}><LogOut size={18}/> Cerrar sesión</button></div>
     </aside>
     <main className="main">
@@ -1219,6 +1368,253 @@ export default function App() {
         </section>
       </>}
 
+{tab === 'overtime' && <>
+  <section className="panel">
+    <div className="panel-head">
+      <div>
+        <h3>Nueva autorización</h3>
+        <p>Registra previamente el período de horas extraordinarias autorizado.</p>
+      </div>
+    </div>
+
+    <form className="employee-form" onSubmit={createOvertime}>
+      <label>Trabajador
+        <select
+          value={overtimeForm.employeeId}
+          onChange={e => setOvertimeForm({
+            ...overtimeForm,
+            employeeId: e.target.value
+          })}
+          required
+        >
+          <option value="">Selecciona un trabajador</option>
+          {employees.filter(e => e.status === 'ACTIVE').map(e =>
+            <option key={e.id} value={e.id}>
+              {e.firstName} {e.lastName} — {e.rut}
+            </option>
+          )}
+        </select>
+      </label>
+
+      <label>Fecha
+        <input
+          type="date"
+          value={overtimeForm.workDate}
+          onChange={e => setOvertimeForm({
+            ...overtimeForm,
+            workDate: e.target.value
+          })}
+          required
+        />
+      </label>
+
+      <label>Hora de inicio autorizada
+        <input
+          type="time"
+          value={overtimeForm.startAt}
+          onChange={e => setOvertimeForm({
+            ...overtimeForm,
+            startAt: e.target.value
+          })}
+          required
+        />
+      </label>
+
+      <label>Hora de término autorizada
+        <input
+          type="time"
+          value={overtimeForm.endAt}
+          onChange={e => setOvertimeForm({
+            ...overtimeForm,
+            endAt: e.target.value
+          })}
+          required
+        />
+      </label>
+
+      <label style={{gridColumn:'1 / -1'}}>
+        Motivo de la autorización
+        <textarea
+          value={overtimeForm.reason}
+          onChange={e => setOvertimeForm({
+            ...overtimeForm,
+            reason: e.target.value
+          })}
+          minLength={8}
+          required
+          rows={3}
+          placeholder="Describe el motivo de las horas extraordinarias..."
+        />
+      </label>
+
+      <button
+        className="primary"
+        disabled={overtimeBusy || !employees.some(e => e.status === 'ACTIVE')}
+      >
+        {overtimeBusy ? 'Procesando...' : 'Crear autorización'}
+      </button>
+    </form>
+  </section>
+
+  <section className="panel">
+    <div className="panel-head">
+      <div>
+        <h3>Autorizaciones registradas</h3>
+        <p>Consulta las autorizaciones y su historial.</p>
+      </div>
+      <button
+        className="secondary"
+        type="button"
+        onClick={() => void loadOvertime()}
+        disabled={overtimeBusy}
+      >
+        <RefreshCw size={16}/> Actualizar
+      </button>
+    </div>
+
+    <div className="attendance-filters">
+      <label>Desde
+        <input
+          type="date"
+          value={overtimeFrom}
+          onChange={e => setOvertimeFrom(e.target.value)}
+        />
+      </label>
+
+      <label>Hasta
+        <input
+          type="date"
+          value={overtimeTo}
+          onChange={e => setOvertimeTo(e.target.value)}
+        />
+      </label>
+
+      <label>Trabajador
+        <select
+          value={overtimeEmployee}
+          onChange={e => setOvertimeEmployee(e.target.value)}
+        >
+          <option value="ALL">Todos</option>
+          {employees.map(e =>
+            <option key={e.id} value={e.id}>
+              {e.firstName} {e.lastName} — {e.rut}
+            </option>
+          )}
+        </select>
+      </label>
+
+      <button
+        className="secondary"
+        type="button"
+        onClick={() => void loadOvertime()}
+        disabled={overtimeBusy}
+      >
+        Filtrar
+      </button>
+    </div>
+
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Trabajador</th>
+            <th>Fecha</th>
+            <th>Horario autorizado</th>
+            <th>Motivo</th>
+            <th>Autorizado por</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {overtimeRows.map(row => (
+            <tr key={row.id}>
+              <td>
+                <b>{row.employee.firstName} {row.employee.lastName}</b>
+                <small className="subcell">{row.employee.rut}</small>
+              </td>
+
+              <td>
+                {new Date(`${row.workDate.slice(0,10)}T12:00:00`).toLocaleDateString('es-CL')}
+              </td>
+
+              <td>
+                {new Date(row.startAt).toLocaleTimeString('es-CL', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  timeZone: 'America/Santiago'
+                })}
+                {' – '}
+                {new Date(row.endAt).toLocaleTimeString('es-CL', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  timeZone: 'America/Santiago'
+                })}
+              </td>
+
+              <td className="reason-cell">{row.reason}</td>
+
+              <td>
+                {row.authorizedBy?.fullName || 'No disponible'}
+                <small className="subcell">
+                  {new Date(row.createdAt).toLocaleString('es-CL')}
+                </small>
+              </td>
+
+              <td>
+                <span className={`status ${
+                  row.effectiveStatus === 'CANCELLED'
+                    ? 'status-voided'
+                    : row.effectiveStatus === 'EXPIRED'
+                      ? 'status-pending'
+                      : ''
+                }`}>
+                  {row.effectiveStatus === 'ACTIVE'
+                    ? 'Vigente'
+                    : row.effectiveStatus === 'EXPIRED'
+                      ? 'Vencida'
+                      : 'Anulada'}
+                </span>
+
+                {row.effectiveStatus === 'CANCELLED' && (
+                  <small className="subcell">
+                    {row.cancelledBy?.fullName || 'Usuario no disponible'}
+                    {row.cancellationReason
+                      ? ` · ${row.cancellationReason}`
+                      : ''}
+                  </small>
+                )}
+              </td>
+
+              <td>
+                {row.effectiveStatus === 'ACTIVE' ? (
+                  <button
+                    type="button"
+                    className="danger-button"
+                    disabled={overtimeBusy}
+                    onClick={() => void cancelOvertime(row)}
+                  >
+                    Anular
+                  </button>
+                ) : (
+                  <span className="subcell">Sin acciones</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {!overtimeRows.length && (
+        <div className="empty">
+          No hay autorizaciones para mostrar.
+        </div>
+      )}
+    </div>
+  </section>
+</>}
+
       {tab==='shifts'&&<>
         <section className="panel">
           <div className="panel-head">
@@ -1392,45 +1788,3 @@ function Records({rows,onReview,reviewBusy='',showReason=false}:{rows:RecordRow[
   </tr>)}</tbody></table>{!rows.length&&<div className="empty">No hay marcaciones para mostrar con estos filtros.</div>}</div>;
 }
 function downloadCsv(rows:RecordRow[]) { const lines=[['Trabajador','RUT','Tipo','Fecha','Método','Estado'],...rows.map(r=>[`${r.employee?.firstName||''} ${r.employee?.lastName||''}`,r.employee?.rut||'',r.type,r.occurredAt,r.method,r.status])]; const csv=lines.map(line=>line.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(';')).join('\r\n'); const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'})); const a=document.createElement('a'); a.href=url; a.download='marcaciones.csv'; a.click(); URL.revokeObjectURL(url); }
-
-========== STYLE.CSS ==========
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
-:root{font-family:'DM Sans',sans-serif;color:#182234;background:#f4f6fa;font-synthesis:none;text-rendering:optimizeLegibility}*{box-sizing:border-box}body{margin:0}button,input{font:inherit}button{cursor:pointer}.app-shell{min-height:100vh}.sidebar{position:fixed;inset:0 auto 0 0;width:252px;background:#101827;color:#d7deea;padding:25px 17px;display:flex;flex-direction:column}.brand{display:flex;align-items:center;gap:11px;padding:0 9px 34px}.brand strong{display:block;font:800 18px Manrope,sans-serif;color:#fff;letter-spacing:-.4px}.brand small{display:block;font-size:9px;letter-spacing:1.5px;color:#8794aa;margin-top:3px}.brand-mark{width:43px;height:43px;border-radius:13px;background:#2d6be8;color:#fff;display:grid;place-items:center;box-shadow:0 7px 18px #1d4fb444}.nav-label,.eyebrow{font-size:10px;letter-spacing:1.5px;font-weight:700;color:#8b97aa}.nav-label{padding:0 12px 12px}.nav{display:flex;align-items:center;gap:12px;border:0;background:transparent;color:#aab5c6;padding:12px 13px;border-radius:9px;text-align:left;width:100%;font-size:13px;margin:2px 0}.nav.active,.nav:hover{background:#243247;color:#fff}.nav.active svg{color:#78a6ff}.sidebar-bottom{margin-top:auto}.secure-note{display:flex;gap:10px;padding:13px 10px;background:#1b283a;border:1px solid #2a394e;border-radius:10px;margin:0 0 15px}.secure-note svg{color:#79a6ff;flex-shrink:0}.secure-note b,.secure-note small{display:block}.secure-note b{font-size:11px;color:#edf2f9}.secure-note small{font-size:10px;line-height:1.5;color:#9ca9bc;margin-top:4px}.main{margin-left:252px;padding:30px 38px;max-width:1700px}.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:25px}.topbar .eyebrow{margin:0 0 6px}.topbar h1{font:800 27px Manrope,sans-serif;letter-spacing:-.8px;margin:0}.top-actions{display:flex;align-items:center;gap:12px}.server-pill{display:flex;align-items:center;gap:8px;border:1px solid #dce4ee;background:#fff;border-radius:30px;padding:9px 12px;font-size:11px;color:#526176}.dot{width:7px;height:7px;background:#22b573;border-radius:50%}.icon-button{display:grid;place-items:center;width:37px;height:37px;border:1px solid #dce4ee;border-radius:10px;background:white;color:#5c6a7e}.welcome{background:linear-gradient(112deg,#1a3152,#244d82);border-radius:15px;padding:26px 30px;color:white;display:flex;align-items:center;justify-content:space-between;min-height:165px;overflow:hidden}.welcome .eyebrow{color:#9dbef5;margin:0 0 10px}.welcome h2{font:800 24px Manrope,sans-serif;letter-spacing:-.7px;margin:0 0 9px}.welcome p:last-child{font-size:13px;color:#d2def0;margin:0}.welcome-icon{width:92px;height:92px;border:1px solid #ffffff2c;background:#ffffff10;border-radius:25px;display:grid;place-items:center;color:#b5d0ff;margin-right:12px}.stat-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:17px;margin:20px 0}.stat,.panel{background:#fff;border:1px solid #e6ebf2;border-radius:13px;box-shadow:0 3px 12px #15284905}.stat{padding:18px 19px}.stat-top{display:flex;align-items:center;justify-content:space-between}.stat-icon{width:36px;height:36px;display:grid;place-items:center;border-radius:10px;background:#edf3ff;color:#326fe0}.stat-icon svg{width:18px}.stat-hint{font-size:10px;color:#8591a3}.stat p{font-size:12px;color:#647187;margin:17px 0 4px}.stat strong{font:800 27px Manrope,sans-serif;letter-spacing:-.6px}.panel{padding:20px 21px;margin-bottom:18px}.panel-head{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:18px}.panel-head h3{font:700 16px Manrope,sans-serif;margin:0 0 5px}.panel-head p{font-size:11px;color:#8591a3;margin:0}.secondary,.primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:8px;padding:10px 13px;font-size:12px;font-weight:700}.secondary{background:#fff;border:1px solid #dce4ef;color:#40516a}.secondary:hover{background:#f7f9fc}.primary{border:0;background:#2868df;color:#fff;box-shadow:0 5px 12px #2868df22}.primary:hover{background:#1e58c4}.table-wrap{overflow:auto}table{border-collapse:collapse;width:100%;white-space:nowrap}th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:#8a96a8;background:#f8fafc;padding:12px 13px;border-bottom:1px solid #e8edf4}td{font-size:12px;color:#526075;padding:13px;border-bottom:1px solid #edf0f5}td b{font-weight:600;color:#28364b}tbody tr:last-child td{border-bottom:0}.subcell{display:block;font-size:10px;color:#8b97a8;margin-top:4px}.status{display:inline-block;background:#eaf8f1;color:#18875a;border-radius:20px;padding:5px 8px;font-size:10px;font-weight:700}.empty{padding:25px;text-align:center;color:#8491a3;font-size:12px}.search{display:flex;align-items:center;gap:8px;border:1px solid #dce4ef;border-radius:9px;padding:4px 5px 4px 10px;color:#8b97a8}.search input{border:0;outline:0;min-width:145px;font-size:12px}.employee-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.employee-form label,.stack label{display:flex;flex-direction:column;gap:7px;font-size:12px;font-weight:600;color:#536177}.employee-form input,.stack input{border:1px solid #dce4ee;border-radius:8px;padding:11px 12px;outline:none;background:#fff;color:#1c293d}.employee-form input:focus,.stack input:focus{border-color:#6091ef;box-shadow:0 0 0 3px #3d7bed15}.employee-form .primary{align-self:end;min-height:39px}footer{text-align:center;font-size:10px;color:#929daf;padding:16px}.alert{padding:12px 14px;border-radius:8px;background:#eaf8f1;color:#187a52;font-size:12px;margin-bottom:15px}.error{color:#b42318}.alert.error{background:#fff0ef}.login-shell{min-height:100vh;display:grid;place-items:center;padding:25px;background:radial-gradient(ellipse at top left,#e0eaff,#f4f6fa 55%)}.login-card{width:min(100%,410px);background:white;border:1px solid #e4eaf2;border-radius:18px;padding:35px;box-shadow:0 18px 55px #1b31500d}.login-card .brand-mark{margin-bottom:24px}.login-card .eyebrow{margin:0 0 7px}.login-card h1{font:800 29px Manrope,sans-serif;margin:0;letter-spacing:-1px}.muted{font-size:13px;color:#8290a4;margin:8px 0 25px}.stack{display:grid;gap:16px}.stack .primary{width:100%;padding:13px;margin-top:3px}.footnote{font-size:10px;line-height:1.6;color:#8a96a8;margin:20px 0 0}.stack .error{font-size:12px;margin:0}@media(max-width:950px){.sidebar{width:205px}.main{margin-left:205px;padding:25px 22px}.stat-grid{grid-template-columns:1fr}.welcome h2{font-size:20px}}@media(max-width:650px){.sidebar{position:static;width:auto;height:auto;padding:12px;display:block}.brand{padding:0 6px 12px}.nav-label,.sidebar-bottom,.secure-note{display:none}.sidebar>.nav{display:inline-flex;width:auto;padding:10px;font-size:11px}.main{margin:0;padding:20px 13px}.topbar{align-items:flex-start}.topbar h1{font-size:22px}.server-pill{display:none}.welcome{padding:22px}.welcome-icon{display:none}.welcome h2{font-size:19px}.panel{padding:15px}.panel-head{align-items:flex-start;flex-direction:column}.search{width:100%}.search input{flex:1;min-width:0}.employee-form{grid-template-columns:1fr}}
-
-/* Filtros y revisión de marcaciones */
-.attendance-filters{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr)) auto;gap:12px;align-items:end;margin:18px 0 10px}
-.attendance-filters label{display:flex;flex-direction:column;gap:6px;font-size:11px;font-weight:700;color:#536177}
-.attendance-filters input,.attendance-filters select{width:100%;min-width:0;border:1px solid #dce4ee;border-radius:8px;padding:10px;background:#fff;color:#26364b;font:inherit;font-size:12px}
-.filter-summary{font-size:11px;color:#7d899b;margin:12px 0}
-.status-pending{background:#fff4d8;color:#946200}
-.status-voided{background:#ffeded;color:#b42318}
-.reason-cell{white-space:normal;min-width:180px;max-width:300px;line-height:1.5}
-.danger-button{display:inline-flex;align-items:center;justify-content:center;border:1px solid #f0caca;background:#fff7f7;color:#b42318;border-radius:8px;padding:9px 11px;font-size:11px;font-weight:700}
-.danger-button:hover{background:#ffeded}
-button:disabled{opacity:.55;cursor:not-allowed}
-.action-buttons{display:flex;flex-wrap:wrap;gap:6px}
-@media(max-width:1100px){.attendance-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:650px){.attendance-filters{grid-template-columns:1fr}.attendance-filters .secondary{width:100%}}
-
-/* Administración de permisos */
-.permission-editor{margin-top:20px}
-.permission-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.permission-option{display:flex;align-items:flex-start;gap:10px;padding:12px;border:1px solid #e1e7ef;border-radius:10px;background:#fff;cursor:pointer}
-.permission-option input{margin-top:3px;accent-color:#3157d5}
-.permission-option span{display:flex;flex-direction:column;gap:4px;min-width:0}
-.permission-option b{font-size:12px;color:#26364b}
-.permission-option small{font-size:11px;color:#7d899b;overflow-wrap:anywhere}
-.permission-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;padding-top:14px;border-top:1px solid #e7ebf2;font-size:12px;color:#68768a}
-@media(max-width:650px){.permission-grid{grid-template-columns:1fr}.permission-footer{align-items:stretch;flex-direction:column}}
-
-/* Terminal público de marcación */
-.terminal-shell{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at top,#e6eeff,#f5f7fb 65%)}
-.terminal-card{width:min(100%,720px);text-align:center;background:#fff;border:1px solid #e2e8f2;border-radius:24px;padding:clamp(28px,6vw,64px);box-shadow:0 24px 80px #182d4b12}
-.terminal-mark{width:92px;height:92px;margin:0 auto 25px;display:grid;place-items:center;border-radius:26px;background:#edf3ff;color:#2868df}
-.terminal-eyebrow{font-size:11px;letter-spacing:2px;font-weight:800;color:#6e7f99}
-.terminal-card h1{font:800 clamp(25px,5vw,38px) Manrope,sans-serif;letter-spacing:-1px;color:#182234;margin:12px 0 28px}
-.terminal-status{display:flex;justify-content:center;align-items:center;gap:12px;font-size:clamp(20px,4vw,29px);color:#1d5d42;background:#eaf8f1;border:1px solid #cceedd;border-radius:15px;padding:22px}
-.terminal-dot{width:12px;height:12px;border-radius:50%;background:#22b573;box-shadow:0 0 0 6px #22b57320}
-.terminal-message{font-size:16px;line-height:1.6;color:#5c6a7e;margin:25px 0}
-.terminal-warning{font-size:12px;line-height:1.6;color:#8a5a10;background:#fff7e6;border-radius:9px;padding:12px}
-root@gyquoxm8:/home/asistencia#
