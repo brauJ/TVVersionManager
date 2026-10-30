@@ -1,0 +1,1692 @@
+root@gyquoxm8:/home/asistencia# cd /home/asistencia
+
+echo "========== ARCHIVOS DEL BACKEND =========="
+find . \
+  -path './node_modules' -prune -o \
+  -path './.git' -prune -o \
+  -path './dist' -prune -o \
+  -type f \( -name 'schema.prisma' -o -name '*attendance*.ts' -o -name '*shift*.ts' -o -name '*audit*.ts' -o -name 'package.json' \) \
+  -print
+
+echo
+echo "========== ESQUEMA PRISMA =========="
+find . -path './node_modules' -prune -o -path './.git' -prune -o -name schema.prisma -type f -exec sh -c 'echo "--- $1 ---"; cat "$1"' _ {} \;
+========== ARCHIVOS DEL BACKEND ==========
+./apps/api/prisma/schema.prisma
+./apps/api/src/attendance.controller.ts
+./apps/api/src/audit.controller.ts
+./apps/api/src/shifts.controller.ts
+./apps/api/node_modules/@nestjs/config/package.json
+./apps/api/node_modules/@nestjs/cli/node_modules/webpack/package.json
+./apps/api/node_modules/@nestjs/cli/node_modules/es-module-lexer/package.json
+./apps/api/node_modules/@nestjs/cli/node_modules/typescript/package.json
+./apps/api/node_modules/@nestjs/cli/package.json
+./apps/api/node_modules/@nestjs/core/package.json
+./apps/api/node_modules/@nestjs/jwt/package.json
+./apps/api/node_modules/@nestjs/passport/package.json
+./apps/api/node_modules/@nestjs/platform-express/package.json
+./apps/api/node_modules/@nestjs/swagger/package.json
+./apps/api/node_modules/@nestjs/testing/package.json
+./apps/api/node_modules/@nestjs/throttler/package.json
+./apps/api/node_modules/@nestjs/mapped-types/package.json
+./apps/api/node_modules/@nestjs/common/package.json
+./apps/api/node_modules/@nestjs/schematics/node_modules/jsonc-parser/package.json
+./apps/api/node_modules/@nestjs/schematics/dist/lib/application/files/js/package.json
+./apps/api/node_modules/@nestjs/schematics/dist/lib/application/files/ts/package.json
+./apps/api/node_modules/@nestjs/schematics/package.json
+./apps/api/node_modules/@types/jest/package.json
+./apps/api/node_modules/@types/node/package.json
+./apps/api/node_modules/@types/passport-jwt/package.json
+./apps/api/node_modules/@types/jsonwebtoken/package.json
+./apps/api/node_modules/@types/body-parser/package.json
+./apps/api/node_modules/@types/express-serve-static-core/package.json
+./apps/api/node_modules/@types/serve-static/package.json
+./apps/api/node_modules/@types/connect/package.json
+./apps/api/node_modules/@types/qs/package.json
+./apps/api/node_modules/@types/range-parser/package.json
+./apps/api/node_modules/@types/send/package.json
+./apps/api/node_modules/@types/passport-strategy/package.json
+./apps/api/node_modules/@types/passport/package.json
+./apps/api/node_modules/@types/http-errors/package.json
+./apps/api/node_modules/@types/validator/package.json
+./apps/api/node_modules/@types/istanbul-lib-coverage/package.json
+./apps/api/node_modules/@types/istanbul-reports/package.json
+./apps/api/node_modules/@types/yargs/package.json
+./apps/api/node_modules/@types/istanbul-lib-report/package.json
+./apps/api/node_modules/@types/yargs-parser/package.json
+./apps/api/node_modules/@types/babel__core/package.json
+./apps/api/node_modules/@types/babel__generator/package.json
+./apps/api/node_modules/@types/babel__template/package.json
+./apps/api/node_modules/@types/babel__traverse/package.json
+./apps/api/node_modules/@types/graceful-fs/package.json
+./apps/api/node_modules/@types/stack-utils/package.json
+./apps/api/node_modules/@types/json-schema/package.json
+./apps/api/node_modules/@types/estree/package.json
+./apps/api/node_modules/@types/eslint-scope/package.json
+./apps/api/node_modules/@types/eslint/package.json
+./apps/api/node_modules/@types/express/package.json
+./apps/api/node_modules/@babel/helper-validator-identifier/package.json
+./apps/api/node_modules/@babel/core/node_modules/ms/package.json
+./apps/api/node_modules/@babel/core/node_modules/debug/package.json
+./apps/api/node_modules/@babel/core/node_modules/semver/package.json
+./apps/api/node_modules/@babel/core/package.json
+./apps/api/node_modules/@babel/generator/package.json
+./apps/api/node_modules/@babel/helper-module-transforms/package.json
+./apps/api/node_modules/@babel/helpers/package.json
+./apps/api/node_modules/@babel/parser/package.json
+./apps/api/node_modules/@babel/template/package.json
+./apps/api/node_modules/@babel/traverse/node_modules/debug/package.json
+./apps/api/node_modules/@babel/traverse/node_modules/ms/package.json
+./apps/api/node_modules/@babel/traverse/package.json
+./apps/api/node_modules/@babel/types/package.json
+./apps/api/node_modules/@babel/compat-data/package.json
+./apps/api/node_modules/@babel/helper-validator-option/package.json
+./apps/api/node_modules/@babel/helper-module-imports/package.json
+./apps/api/node_modules/@babel/helper-globals/package.json
+./apps/api/node_modules/@babel/helper-string-parser/package.json
+./apps/api/node_modules/@babel/helper-plugin-utils/package.json
+./apps/api/node_modules/@babel/plugin-syntax-async-generators/package.json
+./apps/api/node_modules/@babel/plugin-syntax-bigint/package.json
+./apps/api/node_modules/@babel/plugin-syntax-class-properties/package.json
+./apps/api/node_modules/@babel/plugin-syntax-class-static-block/package.json
+./apps/api/node_modules/@babel/plugin-syntax-import-attributes/package.json
+./apps/api/node_modules/@babel/plugin-syntax-import-meta/package.json
+./apps/api/node_modules/@babel/plugin-syntax-json-strings/package.json
+./apps/api/node_modules/@babel/plugin-syntax-logical-assignment-operators/package.json
+./apps/api/node_modules/@babel/plugin-syntax-nullish-coalescing-operator/package.json
+./apps/api/node_modules/@babel/plugin-syntax-numeric-separator/package.json
+./apps/api/node_modules/@babel/plugin-syntax-object-rest-spread/package.json
+./apps/api/node_modules/@babel/plugin-syntax-optional-catch-binding/package.json
+./apps/api/node_modules/@babel/plugin-syntax-optional-chaining/package.json
+./apps/api/node_modules/@babel/plugin-syntax-private-property-in-object/package.json
+./apps/api/node_modules/@babel/plugin-syntax-top-level-await/package.json
+./apps/api/node_modules/@babel/plugin-syntax-jsx/package.json
+./apps/api/node_modules/@babel/plugin-syntax-typescript/package.json
+./apps/api/node_modules/@babel/code-frame/package.json
+./apps/api/node_modules/@babel/helper-compilation-targets/node_modules/semver/package.json
+./apps/api/node_modules/@babel/helper-compilation-targets/package.json
+./apps/api/node_modules/@jest/core/package.json
+./apps/api/node_modules/@jest/types/package.json
+./apps/api/node_modules/@jest/console/package.json
+./apps/api/node_modules/@jest/test-result/package.json
+./apps/api/node_modules/@jest/transform/package.json
+./apps/api/node_modules/@jest/schemas/package.json
+./apps/api/node_modules/@jest/test-sequencer/package.json
+./apps/api/node_modules/@jest/environment/package.json
+./apps/api/node_modules/@jest/expect/package.json
+./apps/api/node_modules/@jest/fake-timers/package.json
+./apps/api/node_modules/@jest/globals/package.json
+./apps/api/node_modules/@jest/source-map/package.json
+./apps/api/node_modules/@jest/expect-utils/package.json
+./apps/api/node_modules/@jest/reporters/node_modules/glob/package.json
+./apps/api/node_modules/@jest/reporters/package.json
+./apps/api/node_modules/@jridgewell/remapping/package.json
+./apps/api/node_modules/@jridgewell/gen-mapping/package.json
+./apps/api/node_modules/@jridgewell/sourcemap-codec/package.json
+./apps/api/node_modules/@jridgewell/resolve-uri/package.json
+./apps/api/node_modules/@jridgewell/source-map/package.json
+./apps/api/node_modules/@jridgewell/trace-mapping/package.json
+./apps/api/node_modules/@istanbuljs/schema/package.json
+./apps/api/node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml/package.json
+./apps/api/node_modules/@istanbuljs/load-nyc-config/node_modules/resolve-from/package.json
+./apps/api/node_modules/@istanbuljs/load-nyc-config/node_modules/argparse/package.json
+./apps/api/node_modules/@istanbuljs/load-nyc-config/package.json
+./apps/api/node_modules/@sinonjs/commons/package.json
+./apps/api/node_modules/@sinonjs/fake-timers/package.json
+./apps/api/node_modules/@prisma/config/package.json
+./apps/api/node_modules/@prisma/engines/package.json
+./apps/api/node_modules/@prisma/debug/package.json
+./apps/api/node_modules/@prisma/engines-version/package.json
+./apps/api/node_modules/@prisma/fetch-engine/package.json
+./apps/api/node_modules/@prisma/get-platform/package.json
+./apps/api/node_modules/@prisma/client/package.json
+./apps/api/node_modules/@esbuild/linux-x64/package.json
+./apps/api/node_modules/@webassemblyjs/wasm-edit/package.json
+./apps/api/node_modules/@webassemblyjs/wasm-parser/package.json
+./apps/api/node_modules/@webassemblyjs/helper-numbers/package.json
+./apps/api/node_modules/@webassemblyjs/helper-wasm-bytecode/package.json
+./apps/api/node_modules/@webassemblyjs/floating-point-hex-parser/package.json
+./apps/api/node_modules/@webassemblyjs/helper-api-error/package.json
+./apps/api/node_modules/@webassemblyjs/helper-buffer/package.json
+./apps/api/node_modules/@webassemblyjs/helper-wasm-section/package.json
+./apps/api/node_modules/@webassemblyjs/wasm-gen/package.json
+./apps/api/node_modules/@webassemblyjs/wasm-opt/package.json
+./apps/api/node_modules/@webassemblyjs/wast-printer/package.json
+./apps/api/node_modules/@webassemblyjs/ieee754/package.json
+./apps/api/node_modules/@webassemblyjs/leb128/package.json
+./apps/api/node_modules/@webassemblyjs/utf8/package.json
+./apps/api/node_modules/@webassemblyjs/ast/package.json
+./apps/api/node_modules/@xtuc/ieee754/package.json
+./apps/api/node_modules/@xtuc/long/package.json
+./apps/api/node_modules/rxjs/dist/types/internal/operators/audit.d.ts
+./apps/api/node_modules/rxjs/dist/types/internal/operators/auditTime.d.ts
+./apps/api/node_modules/rxjs/src/internal/operators/audit.ts
+./apps/api/node_modules/rxjs/src/internal/operators/auditTime.ts
+./apps/api/node_modules/rxjs/ajax/package.json
+./apps/api/node_modules/rxjs/fetch/package.json
+./apps/api/node_modules/rxjs/operators/package.json
+./apps/api/node_modules/rxjs/package.json
+./apps/api/node_modules/rxjs/testing/package.json
+./apps/api/node_modules/rxjs/webSocket/package.json
+./apps/api/node_modules/@nuxtjs/opencollective/package.json
+./apps/api/node_modules/@microsoft/tsdoc/package.json
+./apps/api/node_modules/@phc/format/package.json
+./apps/api/node_modules/@colors/colors/package.json
+./apps/api/node_modules/schema-utils/node_modules/json-schema-traverse/package.json
+./apps/api/node_modules/schema-utils/node_modules/ajv/package.json
+./apps/api/node_modules/schema-utils/node_modules/ajv-keywords/package.json
+./apps/api/node_modules/schema-utils/package.json
+./apps/api/node_modules/@pkgjs/parseargs/package.json
+./apps/api/node_modules/@bcoe/v8-coverage/dist/lib/package.json
+./apps/api/node_modules/@bcoe/v8-coverage/package.json
+./apps/api/node_modules/istanbul-lib-source-maps/node_modules/ms/package.json
+./apps/api/node_modules/istanbul-lib-source-maps/node_modules/debug/package.json
+./apps/api/node_modules/istanbul-lib-source-maps/node_modules/source-map/package.json
+./apps/api/node_modules/istanbul-lib-source-maps/package.json
+./apps/api/node_modules/@sinclair/typebox/package.json
+./apps/api/node_modules/c12/node_modules/readdirp/esm/package.json
+./apps/api/node_modules/c12/node_modules/readdirp/package.json
+./apps/api/node_modules/c12/node_modules/chokidar/esm/package.json
+./apps/api/node_modules/c12/node_modules/chokidar/package.json
+./apps/api/node_modules/c12/node_modules/dotenv/package.json
+./apps/api/node_modules/c12/package.json
+./apps/api/node_modules/@standard-schema/spec/package.json
+./apps/api/node_modules/@tokenizer/inflate/node_modules/debug/package.json
+./apps/api/node_modules/@tokenizer/inflate/node_modules/ms/package.json
+./apps/api/node_modules/@tokenizer/inflate/package.json
+./apps/api/node_modules/@tokenizer/token/package.json
+./apps/api/node_modules/@scarf/scarf/package.json
+./apps/api/node_modules/@borewit/text-codec/package.json
+./apps/api/node_modules/@lukeed/csprng/package.json
+./apps/api/node_modules/webpack/node_modules/ajv/package.json
+./apps/api/node_modules/webpack/node_modules/ajv-formats/package.json
+./apps/api/node_modules/webpack/node_modules/mime-db/package.json
+./apps/api/node_modules/webpack/node_modules/schema-utils/package.json
+./apps/api/node_modules/webpack/package.json
+./apps/api/node_modules/minimizer-webpack-plugin/node_modules/supports-color/package.json
+./apps/api/node_modules/minimizer-webpack-plugin/node_modules/ajv/package.json
+./apps/api/node_modules/minimizer-webpack-plugin/node_modules/ajv-formats/package.json
+./apps/api/node_modules/minimizer-webpack-plugin/node_modules/jest-worker/package.json
+./apps/api/node_modules/minimizer-webpack-plugin/node_modules/schema-utils/package.json
+./apps/api/node_modules/minimizer-webpack-plugin/package.json
+./apps/api/node_modules/terser/node_modules/source-map/package.json
+./apps/api/node_modules/terser/node_modules/commander/package.json
+./apps/api/node_modules/terser/node_modules/source-map-support/package.json
+./apps/api/node_modules/terser/dist/package.json
+./apps/api/node_modules/terser/bin/package.json
+./apps/api/node_modules/terser/package.json
+./apps/api/node_modules/@ljharb/through/package.json
+./apps/api/node_modules/terser-webpack-plugin/node_modules/supports-color/package.json
+./apps/api/node_modules/terser-webpack-plugin/node_modules/ajv/package.json
+./apps/api/node_modules/terser-webpack-plugin/node_modules/ajv-formats/package.json
+./apps/api/node_modules/terser-webpack-plugin/node_modules/jest-worker/package.json
+./apps/api/node_modules/terser-webpack-plugin/node_modules/schema-utils/package.json
+./apps/api/node_modules/terser-webpack-plugin/package.json
+./apps/api/node_modules/reflect-metadata/package.json
+./apps/api/node_modules/passport/package.json
+./apps/api/node_modules/typescript/package.json
+./apps/api/node_modules/argon2/package.json
+./apps/api/node_modules/class-transformer/package.json
+./apps/api/node_modules/class-validator/package.json
+./apps/api/node_modules/helmet/package.json
+./apps/api/node_modules/jest/package.json
+./apps/api/node_modules/passport-jwt/package.json
+./apps/api/node_modules/prisma/prisma-client/package.json
+./apps/api/node_modules/prisma/package.json
+./apps/api/node_modules/tsx/package.json
+./apps/api/node_modules/@angular-devkit/core/node_modules/rxjs/dist/types/internal/operators/audit.d.ts
+./apps/api/node_modules/@angular-devkit/core/node_modules/rxjs/dist/types/internal/operators/auditTime.d.ts
+./apps/api/node_modules/@angular-devkit/core/node_modules/rxjs/src/internal/operators/audit.ts
+./apps/api/node_modules/@angular-devkit/core/node_modules/rxjs/src/internal/operators/auditTime.ts
+./apps/api/node_modules/@angular-devkit/core/node_modules/rxjs/ajax/package.json
+./apps/api/node_modules/@angular-devkit/core/node_modules/rxjs/fetch/package.json
+./apps/api/node_modules/@angular-devkit/core/node_modules/rxjs/operators/package.json
+./apps/api/node_modules/@angular-devkit/core/node_modules/rxjs/package.json
+./apps/api/node_modules/@angular-devkit/core/node_modules/rxjs/testing/package.json
+./apps/api/node_modules/@angular-devkit/core/node_modules/rxjs/webSocket/package.json
+./apps/api/node_modules/@angular-devkit/core/package.json
+./apps/api/node_modules/@angular-devkit/schematics/node_modules/rxjs/dist/types/internal/operators/audit.d.ts
+./apps/api/node_modules/@angular-devkit/schematics/node_modules/rxjs/dist/types/internal/operators/auditTime.d.ts
+./apps/api/node_modules/@angular-devkit/schematics/node_modules/rxjs/src/internal/operators/audit.ts
+./apps/api/node_modules/@angular-devkit/schematics/node_modules/rxjs/src/internal/operators/auditTime.ts
+./apps/api/node_modules/@angular-devkit/schematics/node_modules/rxjs/ajax/package.json
+./apps/api/node_modules/@angular-devkit/schematics/node_modules/rxjs/fetch/package.json
+./apps/api/node_modules/@angular-devkit/schematics/node_modules/rxjs/operators/package.json
+./apps/api/node_modules/@angular-devkit/schematics/node_modules/rxjs/package.json
+./apps/api/node_modules/@angular-devkit/schematics/node_modules/rxjs/testing/package.json
+./apps/api/node_modules/@angular-devkit/schematics/node_modules/rxjs/webSocket/package.json
+./apps/api/node_modules/@angular-devkit/schematics/tools/package.json
+./apps/api/node_modules/@angular-devkit/schematics/tasks/package.json
+./apps/api/node_modules/@angular-devkit/schematics/testing/package.json
+./apps/api/node_modules/@angular-devkit/schematics/package.json
+./apps/api/node_modules/@angular-devkit/schematics-cli/node_modules/mute-stream/package.json
+./apps/api/node_modules/@angular-devkit/schematics-cli/node_modules/run-async/package.json
+./apps/api/node_modules/@angular-devkit/schematics-cli/node_modules/inquirer/package.json
+./apps/api/node_modules/@angular-devkit/schematics-cli/node_modules/chalk/package.json
+./apps/api/node_modules/@angular-devkit/schematics-cli/node_modules/cli-width/package.json
+./apps/api/node_modules/@angular-devkit/schematics-cli/schematic/files/package.json
+./apps/api/node_modules/@angular-devkit/schematics-cli/blank/project-files/package.json
+./apps/api/node_modules/@angular-devkit/schematics-cli/package.json
+./apps/api/node_modules/chalk/package.json
+./apps/api/node_modules/chokidar/package.json
+./apps/api/node_modules/cli-table3/package.json
+./apps/api/node_modules/commander/package.json
+./apps/api/node_modules/fork-ts-checker-webpack-plugin/package.json
+./apps/api/node_modules/glob/node_modules/minimatch/dist/commonjs/package.json
+./apps/api/node_modules/glob/node_modules/minimatch/dist/esm/package.json
+./apps/api/node_modules/glob/node_modules/minimatch/package.json
+./apps/api/node_modules/glob/node_modules/brace-expansion/package.json
+./apps/api/node_modules/glob/dist/commonjs/package.json
+./apps/api/node_modules/glob/dist/esm/package.json
+./apps/api/node_modules/glob/package.json
+./apps/api/node_modules/inquirer/package.json
+./apps/api/node_modules/node-emoji/package.json
+./apps/api/node_modules/ora/package.json
+./apps/api/node_modules/tree-kill/package.json
+./apps/api/node_modules/tsconfig-paths-webpack-plugin/package.json
+./apps/api/node_modules/ajv/package.json
+./apps/api/node_modules/ajv-formats/package.json
+./apps/api/node_modules/webpack-node-externals/package.json
+./apps/api/node_modules/jsonc-parser/package.json
+./apps/api/node_modules/picomatch/package.json
+./apps/api/node_modules/source-map/package.json
+./apps/api/node_modules/magic-string/package.json
+./apps/api/node_modules/ansi-colors/package.json
+./apps/api/node_modules/symbol-observable/package.json
+./apps/api/node_modules/yargs-parser/package.json
+./apps/api/node_modules/file-type/package.json
+./apps/api/node_modules/iterare/package.json
+./apps/api/node_modules/tslib/modules/package.json
+./apps/api/node_modules/tslib/package.json
+./apps/api/node_modules/uid/package.json
+./apps/api/node_modules/dotenv/package.json
+./apps/api/node_modules/dotenv-expand/package.json
+./apps/api/node_modules/lodash/package.json
+./apps/api/node_modules/fast-safe-stringify/package.json
+./apps/api/node_modules/path-to-regexp/package.json
+./apps/api/node_modules/body-parser/package.json
+./apps/api/node_modules/cors/package.json
+./apps/api/node_modules/multer/package.json
+./apps/api/node_modules/comment-json/package.json
+./apps/api/node_modules/pluralize/package.json
+./apps/api/node_modules/js-yaml/package.json
+./apps/api/node_modules/swagger-ui-dist/package.json
+./apps/api/node_modules/consola/package.json
+./apps/api/node_modules/node-fetch/package.json
+./apps/api/node_modules/expect/package.json
+./apps/api/node_modules/undici-types/package.json
+./apps/api/node_modules/fast-deep-equal/package.json
+./apps/api/node_modules/json-schema-traverse/package.json
+./apps/api/node_modules/require-from-string/package.json
+./apps/api/node_modules/uri-js/package.json
+./apps/api/node_modules/node-addon-api/package.json
+./apps/api/node_modules/node-gyp-build/package.json
+./apps/api/node_modules/bytes/package.json
+./apps/api/node_modules/content-type/package.json
+./apps/api/node_modules/debug/package.json
+./apps/api/node_modules/depd/package.json
+./apps/api/node_modules/destroy/package.json
+./apps/api/node_modules/http-errors/package.json
+./apps/api/node_modules/iconv-lite/package.json
+./apps/api/node_modules/on-finished/package.json
+./apps/api/node_modules/qs/package.json
+./apps/api/node_modules/raw-body/package.json
+./apps/api/node_modules/type-is/package.json
+./apps/api/node_modules/unpipe/package.json
+./apps/api/node_modules/ansi-styles/package.json
+./apps/api/node_modules/supports-color/package.json
+./apps/api/node_modules/color-convert/package.json
+./apps/api/node_modules/braces/package.json
+./apps/api/node_modules/glob-parent/package.json
+./apps/api/node_modules/is-binary-path/package.json
+./apps/api/node_modules/is-glob/package.json
+./apps/api/node_modules/normalize-path/package.json
+./apps/api/node_modules/fill-range/package.json
+./apps/api/node_modules/libphonenumber-js/core/es6/package.json
+./apps/api/node_modules/libphonenumber-js/core/package.json
+./apps/api/node_modules/libphonenumber-js/max/es6/package.json
+./apps/api/node_modules/libphonenumber-js/max/metadata/package.json
+./apps/api/node_modules/libphonenumber-js/max/package.json
+./apps/api/node_modules/libphonenumber-js/min/es6/package.json
+./apps/api/node_modules/libphonenumber-js/min/metadata/package.json
+./apps/api/node_modules/libphonenumber-js/min/package.json
+./apps/api/node_modules/libphonenumber-js/mobile/examples/package.json
+./apps/api/node_modules/libphonenumber-js/mobile/es6/package.json
+./apps/api/node_modules/libphonenumber-js/mobile/metadata/package.json
+./apps/api/node_modules/libphonenumber-js/mobile/package.json
+./apps/api/node_modules/libphonenumber-js/build/package.json
+./apps/api/node_modules/libphonenumber-js/package.json
+./apps/api/node_modules/validator/package.json
+./apps/api/node_modules/string-width/package.json
+./apps/api/node_modules/color-name/package.json
+./apps/api/node_modules/array-timsort/package.json
+./apps/api/node_modules/core-util-is/package.json
+./apps/api/node_modules/esprima/package.json
+./apps/api/node_modules/has-own-prop/package.json
+./apps/api/node_modules/repeat-string/package.json
+./apps/api/node_modules/object-assign/package.json
+./apps/api/node_modules/vary/package.json
+./apps/api/node_modules/ms/package.json
+./apps/api/node_modules/jest-get-type/package.json
+./apps/api/node_modules/jest-matcher-utils/package.json
+./apps/api/node_modules/jest-message-util/package.json
+./apps/api/node_modules/accepts/package.json
+./apps/api/node_modules/array-flatten/package.json
+./apps/api/node_modules/content-disposition/package.json
+./apps/api/node_modules/cookie/package.json
+./apps/api/node_modules/cookie-signature/package.json
+./apps/api/node_modules/encodeurl/package.json
+./apps/api/node_modules/escape-html/package.json
+./apps/api/node_modules/etag/package.json
+./apps/api/node_modules/finalhandler/package.json
+./apps/api/node_modules/fresh/package.json
+./apps/api/node_modules/merge-descriptors/package.json
+./apps/api/node_modules/methods/package.json
+./apps/api/node_modules/parseurl/package.json
+./apps/api/node_modules/proxy-addr/package.json
+./apps/api/node_modules/range-parser/package.json
+./apps/api/node_modules/safe-buffer/package.json
+./apps/api/node_modules/serve-static/package.json
+./apps/api/node_modules/setprototypeof/package.json
+./apps/api/node_modules/statuses/package.json
+./apps/api/node_modules/utils-merge/package.json
+./apps/api/node_modules/mime-types/package.json
+./apps/api/node_modules/negotiator/package.json
+./apps/api/node_modules/strtok3/package.json
+./apps/api/node_modules/token-types/package.json
+./apps/api/node_modules/uint8array-extras/package.json
+./apps/api/node_modules/fflate/package.json
+./apps/api/node_modules/to-regex-range/package.json
+./apps/api/node_modules/tmp/package.json
+./apps/api/node_modules/cosmiconfig/package.json
+./apps/api/node_modules/deepmerge/package.json
+./apps/api/node_modules/fs-extra/package.json
+./apps/api/node_modules/memfs/package.json
+./apps/api/node_modules/semver/package.json
+./apps/api/node_modules/tapable/package.json
+./apps/api/node_modules/js-tokens/package.json
+./apps/api/node_modules/picocolors/package.json
+./apps/api/node_modules/import-fresh/package.json
+./apps/api/node_modules/parse-json/package.json
+./apps/api/node_modules/path-type/package.json
+./apps/api/node_modules/graceful-fs/package.json
+./apps/api/node_modules/jsonfile/package.json
+./apps/api/node_modules/universalify/package.json
+./apps/api/node_modules/foreground-child/dist/commonjs/package.json
+./apps/api/node_modules/foreground-child/dist/esm/package.json
+./apps/api/node_modules/foreground-child/package.json
+./apps/api/node_modules/jackspeak/dist/commonjs/package.json
+./apps/api/node_modules/jackspeak/dist/esm/package.json
+./apps/api/node_modules/jackspeak/package.json
+./apps/api/node_modules/minipass/dist/commonjs/package.json
+./apps/api/node_modules/minipass/dist/esm/package.json
+./apps/api/node_modules/minipass/package.json
+./apps/api/node_modules/package-json-from-dist/dist/commonjs/package.json
+./apps/api/node_modules/package-json-from-dist/dist/esm/package.json
+./apps/api/node_modules/package-json-from-dist/package.json
+./apps/api/node_modules/cross-spawn/package.json
+./apps/api/node_modules/signal-exit/dist/cjs/package.json
+./apps/api/node_modules/signal-exit/dist/mjs/package.json
+./apps/api/node_modules/signal-exit/package.json
+./apps/api/node_modules/path-key/package.json
+./apps/api/node_modules/shebang-command/package.json
+./apps/api/node_modules/which/package.json
+./apps/api/node_modules/inherits/package.json
+./apps/api/node_modules/toidentifier/package.json
+./apps/api/node_modules/safer-buffer/package.json
+./apps/api/node_modules/parent-module/package.json
+./apps/api/node_modules/resolve-from/package.json
+./apps/api/node_modules/ansi-escapes/package.json
+./apps/api/node_modules/cli-cursor/package.json
+./apps/api/node_modules/cli-width/package.json
+./apps/api/node_modules/external-editor/package.json
+./apps/api/node_modules/figures/package.json
+./apps/api/node_modules/mute-stream/package.json
+./apps/api/node_modules/run-async/package.json
+./apps/api/node_modules/strip-ansi/package.json
+./apps/api/node_modules/through/package.json
+./apps/api/node_modules/wrap-ansi/package.json
+./apps/api/node_modules/type-fest/package.json
+./apps/api/node_modules/chardet/package.json
+./apps/api/node_modules/escape-string-regexp/package.json
+./apps/api/node_modules/binary-extensions/package.json
+./apps/api/node_modules/is-extglob/package.json
+./apps/api/node_modules/@isaacs/cliui/node_modules/emoji-regex/package.json
+./apps/api/node_modules/@isaacs/cliui/node_modules/ansi-regex/package.json
+./apps/api/node_modules/@isaacs/cliui/node_modules/ansi-styles/package.json
+./apps/api/node_modules/@isaacs/cliui/node_modules/string-width/package.json
+./apps/api/node_modules/@isaacs/cliui/node_modules/strip-ansi/package.json
+./apps/api/node_modules/@isaacs/cliui/node_modules/wrap-ansi/package.json
+./apps/api/node_modules/@isaacs/cliui/package.json
+./apps/api/node_modules/string-width-cjs/package.json
+./apps/api/node_modules/strip-ansi-cjs/package.json
+./apps/api/node_modules/wrap-ansi-cjs/package.json
+./apps/api/node_modules/import-local/package.json
+./apps/api/node_modules/jest-cli/package.json
+./apps/api/node_modules/ci-info/package.json
+./apps/api/node_modules/exit/package.json
+./apps/api/node_modules/jest-changed-files/package.json
+./apps/api/node_modules/jest-haste-map/package.json
+./apps/api/node_modules/jest-regex-util/package.json
+./apps/api/node_modules/jest-resolve/package.json
+./apps/api/node_modules/jest-resolve-dependencies/package.json
+./apps/api/node_modules/jest-runner/package.json
+./apps/api/node_modules/jest-snapshot/package.json
+./apps/api/node_modules/jest-watcher/package.json
+./apps/api/node_modules/minimatch/package.json
+./apps/api/node_modules/slash/package.json
+./apps/api/node_modules/collect-v8-coverage/package.json
+./apps/api/node_modules/istanbul-lib-coverage/package.json
+./apps/api/node_modules/istanbul-lib-instrument/package.json
+./apps/api/node_modules/istanbul-lib-report/package.json
+./apps/api/node_modules/istanbul-reports/package.json
+./apps/api/node_modules/string-length/package.json
+./apps/api/node_modules/v8-to-istanbul/package.json
+./apps/api/node_modules/babel-plugin-istanbul/node_modules/istanbul-lib-instrument/package.json
+./apps/api/node_modules/babel-plugin-istanbul/node_modules/semver/package.json
+./apps/api/node_modules/babel-plugin-istanbul/package.json
+./apps/api/node_modules/convert-source-map/package.json
+./apps/api/node_modules/fast-json-stable-stringify/package.json
+./apps/api/node_modules/pirates/package.json
+./apps/api/node_modules/gensync/package.json
+./apps/api/node_modules/json5/package.json
+./apps/api/node_modules/jsesc/package.json
+./apps/api/node_modules/browserslist/package.json
+./apps/api/node_modules/lru-cache/package.json
+./apps/api/node_modules/camelcase/package.json
+./apps/api/node_modules/find-up/package.json
+./apps/api/node_modules/get-package-type/package.json
+./apps/api/node_modules/baseline-browser-mapping/package.json
+./apps/api/node_modules/caniuse-lite/package.json
+./apps/api/node_modules/electron-to-chromium/package.json
+./apps/api/node_modules/node-releases/package.json
+./apps/api/node_modules/update-browserslist-db/package.json
+./apps/api/node_modules/locate-path/package.json
+./apps/api/node_modules/path-exists/package.json
+./apps/api/node_modules/pkg-dir/package.json
+./apps/api/node_modules/make-dir/package.json
+./apps/api/node_modules/html-escaper/cjs/package.json
+./apps/api/node_modules/html-escaper/test/package.json
+./apps/api/node_modules/html-escaper/package.json
+./apps/api/node_modules/p-limit/package.json
+./apps/api/node_modules/get-stream/package.json
+./apps/api/node_modules/human-signals/package.json
+./apps/api/node_modules/is-stream/package.json
+./apps/api/node_modules/merge-stream/package.json
+./apps/api/node_modules/npm-run-path/package.json
+./apps/api/node_modules/onetime/package.json
+./apps/api/node_modules/strip-final-newline/package.json
+./apps/api/node_modules/create-jest/package.json
+./apps/api/node_modules/yargs/helpers/package.json
+./apps/api/node_modules/yargs/package.json
+./apps/api/node_modules/prompts/package.json
+./apps/api/node_modules/babel-jest/package.json
+./apps/api/node_modules/jest-circus/package.json
+./apps/api/node_modules/jest-environment-node/package.json
+./apps/api/node_modules/strip-json-comments/package.json
+./apps/api/node_modules/babel-preset-jest/package.json
+./apps/api/node_modules/babel-plugin-jest-hoist/package.json
+./apps/api/node_modules/babel-preset-current-node-syntax/package.json
+./apps/api/node_modules/co/package.json
+./apps/api/node_modules/dedent/package.json
+./apps/api/node_modules/is-generator-fn/package.json
+./apps/api/node_modules/jest-each/package.json
+./apps/api/node_modules/pure-rand/lib/esm/package.json
+./apps/api/node_modules/pure-rand/package.json
+./apps/api/node_modules/jest-mock/package.json
+./apps/api/node_modules/type-detect/package.json
+./apps/api/node_modules/fb-watchman/package.json
+./apps/api/node_modules/walker/package.json
+./apps/api/node_modules/bser/package.json
+./apps/api/node_modules/node-int64/package.json
+./apps/api/node_modules/jest-diff/package.json
+./apps/api/node_modules/diff-sequences/package.json
+./apps/api/node_modules/node-abort-controller/package.json
+./apps/api/node_modules/resolve.exports/package.json
+./apps/api/node_modules/emittery/package.json
+./apps/api/node_modules/jest-docblock/package.json
+./apps/api/node_modules/jest-leak-detector/package.json
+./apps/api/node_modules/detect-newline/package.json
+./apps/api/node_modules/cjs-module-lexer/package.json
+./apps/api/node_modules/strip-bom/package.json
+./apps/api/node_modules/callsites/package.json
+./apps/api/node_modules/natural-compare/package.json
+./apps/api/node_modules/leven/package.json
+./apps/api/node_modules/argparse/package.json
+./apps/api/node_modules/jws/package.json
+./apps/api/node_modules/lodash.includes/package.json
+./apps/api/node_modules/lodash.isboolean/package.json
+./apps/api/node_modules/lodash.isinteger/package.json
+./apps/api/node_modules/lodash.isnumber/package.json
+./apps/api/node_modules/lodash.isplainobject/package.json
+./apps/api/node_modules/lodash.isstring/package.json
+./apps/api/node_modules/lodash.once/package.json
+./apps/api/node_modules/jwa/package.json
+./apps/api/node_modules/buffer-equal-constant-time/package.json
+./apps/api/node_modules/ecdsa-sig-formatter/package.json
+./apps/api/node_modules/yallist/package.json
+./apps/api/node_modules/fs-monkey/package.json
+./apps/api/node_modules/mime-db/package.json
+./apps/api/node_modules/brace-expansion/package.json
+./apps/api/node_modules/balanced-match/package.json
+./apps/api/node_modules/concat-map/package.json
+./apps/api/node_modules/append-field/package.json
+./apps/api/node_modules/busboy/package.json
+./apps/api/node_modules/concat-stream/package.json
+./apps/api/node_modules/mkdirp/package.json
+./apps/api/node_modules/xtend/package.json
+./apps/api/node_modules/streamsearch/package.json
+./apps/api/node_modules/buffer-from/package.json
+./apps/api/node_modules/readable-stream/package.json
+./apps/api/node_modules/typedarray/package.json
+./apps/api/node_modules/minimist/package.json
+./apps/api/node_modules/whatwg-url/package.json
+./apps/api/node_modules/ee-first/package.json
+./apps/api/node_modules/mimic-fn/package.json
+./apps/api/node_modules/bl/package.json
+./apps/api/node_modules/cli-spinners/package.json
+./apps/api/node_modules/is-interactive/package.json
+./apps/api/node_modules/is-unicode-supported/package.json
+./apps/api/node_modules/log-symbols/package.json
+./apps/api/node_modules/buffer/package.json
+./apps/api/node_modules/wcwidth/package.json
+./apps/api/node_modules/base64-js/package.json
+./apps/api/node_modules/ieee754/package.json
+./apps/api/node_modules/yocto-queue/package.json
+./apps/api/node_modules/error-ex/package.json
+./apps/api/node_modules/json-parse-even-better-errors/package.json
+./apps/api/node_modules/lines-and-columns/package.json
+./apps/api/node_modules/is-arrayish/package.json
+./apps/api/node_modules/passport-strategy/package.json
+./apps/api/node_modules/pause/package.json
+./apps/api/node_modules/react-is/package.json
+./apps/api/node_modules/deepmerge-ts/package.json
+./apps/api/node_modules/effect/dist/esm/package.json
+./apps/api/node_modules/effect/.index/package.json
+./apps/api/node_modules/effect/Arbitrary/package.json
+./apps/api/node_modules/effect/Array/package.json
+./apps/api/node_modules/effect/BigDecimal/package.json
+./apps/api/node_modules/effect/BigInt/package.json
+./apps/api/node_modules/effect/Boolean/package.json
+./apps/api/node_modules/effect/Brand/package.json
+./apps/api/node_modules/effect/Cache/package.json
+./apps/api/node_modules/effect/Cause/package.json
+./apps/api/node_modules/effect/Channel/package.json
+./apps/api/node_modules/effect/ChildExecutorDecision/package.json
+./apps/api/node_modules/effect/Chunk/package.json
+./apps/api/node_modules/effect/Clock/package.json
+./apps/api/node_modules/effect/Config/package.json
+./apps/api/node_modules/effect/ConfigError/package.json
+./apps/api/node_modules/effect/ConfigProvider/package.json
+./apps/api/node_modules/effect/ConfigProviderPathPatch/package.json
+./apps/api/node_modules/effect/Console/package.json
+./apps/api/node_modules/effect/Context/package.json
+./apps/api/node_modules/effect/Cron/package.json
+./apps/api/node_modules/effect/Data/package.json
+./apps/api/node_modules/effect/DateTime/package.json
+./apps/api/node_modules/effect/DefaultServices/package.json
+./apps/api/node_modules/effect/Deferred/package.json
+./apps/api/node_modules/effect/Differ/package.json
+./apps/api/node_modules/effect/Duration/package.json
+./apps/api/node_modules/effect/Effect/package.json
+./apps/api/node_modules/effect/Effectable/package.json
+./apps/api/node_modules/effect/Either/package.json
+./apps/api/node_modules/effect/Encoding/package.json
+./apps/api/node_modules/effect/Equal/package.json
+./apps/api/node_modules/effect/Equivalence/package.json
+./apps/api/node_modules/effect/ExecutionPlan/package.json
+./apps/api/node_modules/effect/ExecutionStrategy/package.json
+./apps/api/node_modules/effect/Exit/package.json
+./apps/api/node_modules/effect/FastCheck/package.json
+./apps/api/node_modules/effect/Fiber/package.json
+./apps/api/node_modules/effect/FiberHandle/package.json
+./apps/api/node_modules/effect/FiberId/package.json
+./apps/api/node_modules/effect/FiberMap/package.json
+./apps/api/node_modules/effect/FiberRef/package.json
+./apps/api/node_modules/effect/FiberRefs/package.json
+./apps/api/node_modules/effect/FiberRefsPatch/package.json
+./apps/api/node_modules/effect/FiberSet/package.json
+./apps/api/node_modules/effect/FiberStatus/package.json
+./apps/api/node_modules/effect/Function/package.json
+./apps/api/node_modules/effect/GlobalValue/package.json
+./apps/api/node_modules/effect/Graph/package.json
+./apps/api/node_modules/effect/GroupBy/package.json
+./apps/api/node_modules/effect/Hash/package.json
+./apps/api/node_modules/effect/HashMap/package.json
+./apps/api/node_modules/effect/HashRing/package.json
+./apps/api/node_modules/effect/HashSet/package.json
+./apps/api/node_modules/effect/HKT/package.json
+./apps/api/node_modules/effect/index/package.json
+./apps/api/node_modules/effect/Inspectable/package.json
+./apps/api/node_modules/effect/Iterable/package.json
+./apps/api/node_modules/effect/JSONSchema/package.json
+./apps/api/node_modules/effect/KeyedPool/package.json
+./apps/api/node_modules/effect/Layer/package.json
+./apps/api/node_modules/effect/LayerMap/package.json
+./apps/api/node_modules/effect/List/package.json
+./apps/api/node_modules/effect/Logger/package.json
+./apps/api/node_modules/effect/LogLevel/package.json
+./apps/api/node_modules/effect/LogSpan/package.json
+./apps/api/node_modules/effect/Mailbox/package.json
+./apps/api/node_modules/effect/ManagedRuntime/package.json
+./apps/api/node_modules/effect/Match/package.json
+./apps/api/node_modules/effect/MergeDecision/package.json
+./apps/api/node_modules/effect/MergeState/package.json
+./apps/api/node_modules/effect/MergeStrategy/package.json
+./apps/api/node_modules/effect/Metric/package.json
+./apps/api/node_modules/effect/MetricBoundaries/package.json
+./apps/api/node_modules/effect/MetricHook/package.json
+./apps/api/node_modules/effect/MetricKey/package.json
+./apps/api/node_modules/effect/MetricKeyType/package.json
+./apps/api/node_modules/effect/MetricLabel/package.json
+./apps/api/node_modules/effect/MetricPair/package.json
+./apps/api/node_modules/effect/MetricPolling/package.json
+./apps/api/node_modules/effect/MetricRegistry/package.json
+./apps/api/node_modules/effect/MetricState/package.json
+./apps/api/node_modules/effect/Micro/package.json
+./apps/api/node_modules/effect/ModuleVersion/package.json
+./apps/api/node_modules/effect/MutableHashMap/package.json
+./apps/api/node_modules/effect/MutableHashSet/package.json
+./apps/api/node_modules/effect/MutableList/package.json
+./apps/api/node_modules/effect/MutableQueue/package.json
+./apps/api/node_modules/effect/MutableRef/package.json
+./apps/api/node_modules/effect/NonEmptyIterable/package.json
+./apps/api/node_modules/effect/Number/package.json
+./apps/api/node_modules/effect/Option/package.json
+./apps/api/node_modules/effect/Order/package.json
+./apps/api/node_modules/effect/Ordering/package.json
+./apps/api/node_modules/effect/package.json
+./apps/api/node_modules/effect/ParseResult/package.json
+./apps/api/node_modules/effect/PartitionedSemaphore/package.json
+./apps/api/node_modules/effect/Pipeable/package.json
+./apps/api/node_modules/effect/Pool/package.json
+./apps/api/node_modules/effect/Predicate/package.json
+./apps/api/node_modules/effect/Pretty/package.json
+./apps/api/node_modules/effect/PrimaryKey/package.json
+./apps/api/node_modules/effect/PubSub/package.json
+./apps/api/node_modules/effect/Queue/package.json
+./apps/api/node_modules/effect/Random/package.json
+./apps/api/node_modules/effect/RateLimiter/package.json
+./apps/api/node_modules/effect/RcMap/package.json
+./apps/api/node_modules/effect/RcRef/package.json
+./apps/api/node_modules/effect/Readable/package.json
+./apps/api/node_modules/effect/Record/package.json
+./apps/api/node_modules/effect/Redacted/package.json
+./apps/api/node_modules/effect/RedBlackTree/package.json
+./apps/api/node_modules/effect/Ref/package.json
+./apps/api/node_modules/effect/RegExp/package.json
+./apps/api/node_modules/effect/Reloadable/package.json
+./apps/api/node_modules/effect/Request/package.json
+./apps/api/node_modules/effect/RequestBlock/package.json
+./apps/api/node_modules/effect/RequestResolver/package.json
+./apps/api/node_modules/effect/Resource/package.json
+./apps/api/node_modules/effect/Runtime/package.json
+./apps/api/node_modules/effect/RuntimeFlags/package.json
+./apps/api/node_modules/effect/RuntimeFlagsPatch/package.json
+./apps/api/node_modules/effect/Schedule/package.json
+./apps/api/node_modules/effect/ScheduleDecision/package.json
+./apps/api/node_modules/effect/ScheduleInterval/package.json
+./apps/api/node_modules/effect/ScheduleIntervals/package.json
+./apps/api/node_modules/effect/Scheduler/package.json
+./apps/api/node_modules/effect/Schema/package.json
+./apps/api/node_modules/effect/SchemaAST/package.json
+./apps/api/node_modules/effect/Scope/package.json
+./apps/api/node_modules/effect/ScopedCache/package.json
+./apps/api/node_modules/effect/ScopedRef/package.json
+./apps/api/node_modules/effect/Secret/package.json
+./apps/api/node_modules/effect/SingleProducerAsyncInput/package.json
+./apps/api/node_modules/effect/Sink/package.json
+./apps/api/node_modules/effect/SortedMap/package.json
+./apps/api/node_modules/effect/SortedSet/package.json
+./apps/api/node_modules/effect/STM/package.json
+./apps/api/node_modules/effect/Stream/package.json
+./apps/api/node_modules/effect/Streamable/package.json
+./apps/api/node_modules/effect/StreamEmit/package.json
+./apps/api/node_modules/effect/StreamHaltStrategy/package.json
+./apps/api/node_modules/effect/String/package.json
+./apps/api/node_modules/effect/Struct/package.json
+./apps/api/node_modules/effect/Subscribable/package.json
+./apps/api/node_modules/effect/SubscriptionRef/package.json
+./apps/api/node_modules/effect/Supervisor/package.json
+./apps/api/node_modules/effect/Symbol/package.json
+./apps/api/node_modules/effect/SynchronizedRef/package.json
+./apps/api/node_modules/effect/Take/package.json
+./apps/api/node_modules/effect/TArray/package.json
+./apps/api/node_modules/effect/TDeferred/package.json
+./apps/api/node_modules/effect/TestAnnotation/package.json
+./apps/api/node_modules/effect/TestAnnotationMap/package.json
+./apps/api/node_modules/effect/TestAnnotations/package.json
+./apps/api/node_modules/effect/TestClock/package.json
+./apps/api/node_modules/effect/TestConfig/package.json
+./apps/api/node_modules/effect/TestContext/package.json
+./apps/api/node_modules/effect/TestLive/package.json
+./apps/api/node_modules/effect/TestServices/package.json
+./apps/api/node_modules/effect/TestSized/package.json
+./apps/api/node_modules/effect/TMap/package.json
+./apps/api/node_modules/effect/TPriorityQueue/package.json
+./apps/api/node_modules/effect/TPubSub/package.json
+./apps/api/node_modules/effect/TQueue/package.json
+./apps/api/node_modules/effect/Tracer/package.json
+./apps/api/node_modules/effect/TRandom/package.json
+./apps/api/node_modules/effect/TReentrantLock/package.json
+./apps/api/node_modules/effect/TRef/package.json
+./apps/api/node_modules/effect/Trie/package.json
+./apps/api/node_modules/effect/TSemaphore/package.json
+./apps/api/node_modules/effect/TSet/package.json
+./apps/api/node_modules/effect/TSubscriptionRef/package.json
+./apps/api/node_modules/effect/Tuple/package.json
+./apps/api/node_modules/effect/Types/package.json
+./apps/api/node_modules/effect/Unify/package.json
+./apps/api/node_modules/effect/UpstreamPullRequest/package.json
+./apps/api/node_modules/effect/UpstreamPullStrategy/package.json
+./apps/api/node_modules/effect/Utils/package.json
+./apps/api/node_modules/empathic/package.json
+./apps/api/node_modules/confbox/package.json
+./apps/api/node_modules/defu/package.json
+./apps/api/node_modules/exsolve/package.json
+./apps/api/node_modules/jiti/package.json
+./apps/api/node_modules/ohash/package.json
+./apps/api/node_modules/pathe/package.json
+./apps/api/node_modules/perfect-debounce/package.json
+./apps/api/node_modules/rc9/package.json
+./apps/api/node_modules/fast-check/lib/esm/package.json
+./apps/api/node_modules/fast-check/package.json
+./apps/api/node_modules/node-fetch-native/package.json
+./apps/api/node_modules/tinyexec/package.json
+./apps/api/node_modules/kleur/package.json
+./apps/api/node_modules/sisteransi/package.json
+./apps/api/node_modules/forwarded/package.json
+./apps/api/node_modules/ipaddr.js/package.json
+./apps/api/node_modules/side-channel/package.json
+./apps/api/node_modules/destr/package.json
+./apps/api/node_modules/string_decoder/package.json
+./apps/api/node_modules/util-deprecate/package.json
+./apps/api/node_modules/es-errors/package.json
+./apps/api/node_modules/is-core-module/package.json
+./apps/api/node_modules/path-parse/package.json
+./apps/api/node_modules/supports-preserve-symlinks-flag/package.json
+./apps/api/node_modules/hasown/package.json
+./apps/api/node_modules/function-bind/package.json
+./apps/api/node_modules/mime/package.json
+./apps/api/node_modules/shebang-regex/package.json
+./apps/api/node_modules/object-inspect/package.json
+./apps/api/node_modules/side-channel-list/package.json
+./apps/api/node_modules/jest-pnp-resolver/package.json
+./apps/api/node_modules/side-channel-map/package.json
+./apps/api/node_modules/side-channel-weakmap/package.json
+./apps/api/node_modules/call-bound/package.json
+./apps/api/node_modules/get-intrinsic/package.json
+./apps/api/node_modules/es-define-property/package.json
+./apps/api/node_modules/call-bind-apply-helpers/package.json
+./apps/api/node_modules/es-object-atoms/package.json
+./apps/api/node_modules/get-proto/package.json
+./apps/api/node_modules/gopd/package.json
+./apps/api/node_modules/has-symbols/package.json
+./apps/api/node_modules/math-intrinsics/package.json
+./apps/api/node_modules/dunder-proto/package.json
+./apps/api/node_modules/char-regex/package.json
+./apps/api/node_modules/emoji-regex/package.json
+./apps/api/node_modules/is-fullwidth-code-point/package.json
+./apps/api/node_modules/ansi-regex/package.json
+./apps/api/node_modules/has-flag/package.json
+./apps/api/node_modules/os-tmpdir/package.json
+./apps/api/node_modules/is-number/package.json
+./apps/api/node_modules/bs-logger/package.json
+./apps/api/node_modules/lodash.memoize/package.json
+./apps/api/node_modules/make-error/package.json
+./apps/api/node_modules/neo-async/package.json
+./apps/api/node_modules/uglify-js/package.json
+./apps/api/node_modules/wordwrap/package.json
+./apps/api/node_modules/enhanced-resolve/package.json
+./apps/api/node_modules/esbuild/package.json
+./apps/api/node_modules/media-typer/package.json
+./apps/api/node_modules/escalade/package.json
+./apps/api/node_modules/punycode/package.json
+./apps/api/node_modules/makeerror/package.json
+./apps/api/node_modules/tmpl/package.json
+./apps/api/node_modules/defaults/package.json
+./apps/api/node_modules/clone/package.json
+./apps/api/node_modules/chrome-trace-event/package.json
+./apps/api/node_modules/events/package.json
+./apps/api/node_modules/watchpack/package.json
+./apps/api/node_modules/webpack-sources/package.json
+./apps/api/node_modules/es-module-lexer/package.json
+./apps/api/node_modules/acorn/package.json
+./apps/api/node_modules/tr46/package.json
+./apps/api/node_modules/webidl-conversions/package.json
+./apps/api/node_modules/isexe/package.json
+./apps/api/node_modules/imurmurhash/package.json
+./apps/api/node_modules/get-caller-file/package.json
+./apps/api/node_modules/require-directory/package.json
+./apps/api/node_modules/y18n/package.json
+./apps/api/node_modules/call-bind/package.json
+./apps/api/node_modules/set-function-length/package.json
+./apps/api/node_modules/define-data-property/package.json
+./apps/api/node_modules/has-property-descriptors/package.json
+./apps/api/node_modules/eastasianwidth/package.json
+./apps/api/node_modules/sprintf-js/package.json
+./apps/api/node_modules/fs.realpath/package.json
+./apps/api/node_modules/inflight/package.json
+./apps/api/node_modules/once/package.json
+./apps/api/node_modules/path-is-absolute/package.json
+./apps/api/node_modules/wrappy/package.json
+./apps/api/node_modules/eslint-scope/package.json
+./apps/api/node_modules/glob-to-regexp/package.json
+./apps/api/node_modules/loader-runner/package.json
+./apps/api/node_modules/estraverse/package.json
+./apps/api/node_modules/ajv-keywords/package.json
+./apps/api/node_modules/fast-uri/benchmark/package.json
+./apps/api/node_modules/fast-uri/package.json
+./apps/api/node_modules/p-try/package.json
+./apps/api/node_modules/resolve/test/resolver/symlinked/package/package.json
+./apps/api/node_modules/resolve/test/resolver/browser_field/package.json
+./apps/api/node_modules/resolve/test/resolver/nested_symlinks/mylib/package.json
+./apps/api/node_modules/resolve/test/resolver/baz/package.json
+./apps/api/node_modules/resolve/test/resolver/dot_main/package.json
+./apps/api/node_modules/resolve/test/resolver/dot_slash_main/package.json
+./apps/api/node_modules/resolve/test/resolver/false_main/package.json
+./apps/api/node_modules/resolve/test/resolver/incorrect_main/package.json
+./apps/api/node_modules/resolve/test/resolver/multirepo/packages/package-a/package.json
+./apps/api/node_modules/resolve/test/resolver/multirepo/packages/package-b/package.json
+./apps/api/node_modules/resolve/test/resolver/multirepo/package.json
+./apps/api/node_modules/resolve/test/resolver/invalid_main/package.json
+./apps/api/node_modules/resolve/test/module_dir/zmodules/bbb/package.json
+./apps/api/node_modules/resolve/package.json
+./apps/api/node_modules/ts-jest/node_modules/type-fest/package.json
+./apps/api/node_modules/ts-jest/package.json
+./apps/api/node_modules/tsconfig-paths/node_modules/strip-bom/package.json
+./apps/api/node_modules/tsconfig-paths/package.json
+./apps/api/node_modules/jsonwebtoken/node_modules/ms/package.json
+./apps/api/node_modules/jsonwebtoken/package.json
+./apps/api/node_modules/express/node_modules/path-to-regexp/package.json
+./apps/api/node_modules/express/package.json
+./apps/api/node_modules/pretty-format/node_modules/ansi-styles/package.json
+./apps/api/node_modules/pretty-format/package.json
+./apps/api/node_modules/anymatch/node_modules/picomatch/package.json
+./apps/api/node_modules/anymatch/package.json
+./apps/api/node_modules/readdirp/node_modules/picomatch/package.json
+./apps/api/node_modules/readdirp/package.json
+./apps/api/node_modules/jest-util/node_modules/picomatch/package.json
+./apps/api/node_modules/jest-util/package.json
+./apps/api/node_modules/send/node_modules/ms/package.json
+./apps/api/node_modules/send/package.json
+./apps/api/node_modules/path-scurry/node_modules/lru-cache/dist/commonjs/package.json
+./apps/api/node_modules/path-scurry/node_modules/lru-cache/dist/esm/package.json
+./apps/api/node_modules/path-scurry/node_modules/lru-cache/package.json
+./apps/api/node_modules/path-scurry/dist/commonjs/package.json
+./apps/api/node_modules/path-scurry/dist/esm/package.json
+./apps/api/node_modules/path-scurry/package.json
+./apps/api/node_modules/restore-cursor/node_modules/signal-exit/package.json
+./apps/api/node_modules/restore-cursor/package.json
+./apps/api/node_modules/jest-config/node_modules/glob/package.json
+./apps/api/node_modules/jest-config/package.json
+./apps/api/node_modules/jest-runtime/node_modules/glob/package.json
+./apps/api/node_modules/jest-runtime/package.json
+./apps/api/node_modules/jest-validate/node_modules/camelcase/package.json
+./apps/api/node_modules/jest-validate/package.json
+./apps/api/node_modules/micromatch/node_modules/picomatch/package.json
+./apps/api/node_modules/micromatch/package.json
+./apps/api/node_modules/jest-worker/node_modules/supports-color/package.json
+./apps/api/node_modules/jest-worker/package.json
+./apps/api/node_modules/write-file-atomic/node_modules/signal-exit/package.json
+./apps/api/node_modules/write-file-atomic/package.json
+./apps/api/node_modules/test-exclude/node_modules/glob/package.json
+./apps/api/node_modules/test-exclude/package.json
+./apps/api/node_modules/resolve-cwd/node_modules/resolve-from/package.json
+./apps/api/node_modules/resolve-cwd/package.json
+./apps/api/node_modules/execa/node_modules/signal-exit/package.json
+./apps/api/node_modules/execa/package.json
+./apps/api/node_modules/stack-utils/node_modules/escape-string-regexp/package.json
+./apps/api/node_modules/stack-utils/package.json
+./apps/api/node_modules/source-map-support/node_modules/source-map/package.json
+./apps/api/node_modules/source-map-support/package.json
+./apps/api/node_modules/p-locate/node_modules/p-limit/package.json
+./apps/api/node_modules/p-locate/package.json
+./apps/api/node_modules/giget/node_modules/consola/package.json
+./apps/api/node_modules/giget/package.json
+./apps/api/node_modules/pkg-types/node_modules/confbox/package.json
+./apps/api/node_modules/pkg-types/package.json
+./apps/api/node_modules/citty/node_modules/consola/package.json
+./apps/api/node_modules/citty/package.json
+./apps/api/node_modules/nypm/node_modules/citty/package.json
+./apps/api/node_modules/nypm/package.json
+./apps/api/node_modules/handlebars/node_modules/source-map/package.json
+./apps/api/node_modules/handlebars/package.json
+./apps/api/node_modules/cliui/node_modules/wrap-ansi/package.json
+./apps/api/node_modules/cliui/package.json
+./apps/api/node_modules/esrecurse/node_modules/estraverse/package.json
+./apps/api/node_modules/esrecurse/package.json
+./apps/api/node_modules/.prisma/client/schema.prisma
+./apps/api/node_modules/.prisma/client/package.json
+./apps/api/package.json
+./apps/api/dist/src/attendance.controller.d.ts
+./apps/api/dist/src/audit.controller.d.ts
+./apps/api/dist/src/shifts.controller.d.ts
+./apps/web/package.json
+./apps/web/node_modules/@types/prop-types/package.json
+./apps/web/node_modules/@types/babel__core/package.json
+./apps/web/node_modules/@types/babel__generator/package.json
+./apps/web/node_modules/@types/babel__template/package.json
+./apps/web/node_modules/@types/babel__traverse/package.json
+./apps/web/node_modules/@types/estree/package.json
+./apps/web/node_modules/@types/react/package.json
+./apps/web/node_modules/@types/react-dom/package.json
+./apps/web/node_modules/@babel/plugin-transform-react-jsx-self/package.json
+./apps/web/node_modules/@babel/plugin-transform-react-jsx-source/package.json
+./apps/web/node_modules/@babel/code-frame/package.json
+./apps/web/node_modules/@babel/generator/package.json
+./apps/web/node_modules/@babel/helper-compilation-targets/package.json
+./apps/web/node_modules/@babel/helper-module-transforms/package.json
+./apps/web/node_modules/@babel/helpers/package.json
+./apps/web/node_modules/@babel/parser/package.json
+./apps/web/node_modules/@babel/template/package.json
+./apps/web/node_modules/@babel/traverse/package.json
+./apps/web/node_modules/@babel/types/package.json
+./apps/web/node_modules/@babel/helper-validator-identifier/package.json
+./apps/web/node_modules/@babel/compat-data/package.json
+./apps/web/node_modules/@babel/helper-validator-option/package.json
+./apps/web/node_modules/@babel/helper-module-imports/package.json
+./apps/web/node_modules/@babel/helper-plugin-utils/package.json
+./apps/web/node_modules/@babel/helper-globals/package.json
+./apps/web/node_modules/@babel/helper-string-parser/package.json
+./apps/web/node_modules/@babel/core/package.json
+./apps/web/node_modules/@jridgewell/gen-mapping/package.json
+./apps/web/node_modules/@jridgewell/trace-mapping/package.json
+./apps/web/node_modules/@jridgewell/sourcemap-codec/package.json
+./apps/web/node_modules/@jridgewell/resolve-uri/package.json
+./apps/web/node_modules/@jridgewell/remapping/package.json
+./apps/web/node_modules/@nodelib/fs.walk/package.json
+./apps/web/node_modules/@nodelib/fs.scandir/package.json
+./apps/web/node_modules/@nodelib/fs.stat/package.json
+./apps/web/node_modules/@esbuild/linux-x64/package.json
+./apps/web/node_modules/@rollup/rollup-linux-x64-gnu/package.json
+./apps/web/node_modules/@vitejs/plugin-react/package.json
+./apps/web/node_modules/autoprefixer/package.json
+./apps/web/node_modules/@rolldown/pluginutils/package.json
+./apps/web/node_modules/@alloc/quick-lru/package.json
+./apps/web/node_modules/@napi-rs/lzma-linux-x64-gnu/package.json
+./apps/web/node_modules/vite/node_modules/fdir/package.json
+./apps/web/node_modules/vite/node_modules/picomatch/package.json
+./apps/web/node_modules/vite/package.json
+./apps/web/node_modules/vite/types/package.json
+./apps/web/node_modules/postcss/package.json
+./apps/web/node_modules/lucide-react/package.json
+./apps/web/node_modules/react/package.json
+./apps/web/node_modules/react-dom/package.json
+./apps/web/node_modules/tailwindcss/package.json
+./apps/web/node_modules/typescript/package.json
+./apps/web/node_modules/csstype/package.json
+./apps/web/node_modules/react-refresh/package.json
+./apps/web/node_modules/convert-source-map/package.json
+./apps/web/node_modules/debug/package.json
+./apps/web/node_modules/gensync/package.json
+./apps/web/node_modules/json5/package.json
+./apps/web/node_modules/semver/package.json
+./apps/web/node_modules/js-tokens/package.json
+./apps/web/node_modules/picocolors/package.json
+./apps/web/node_modules/jsesc/package.json
+./apps/web/node_modules/browserslist/package.json
+./apps/web/node_modules/lru-cache/package.json
+./apps/web/node_modules/caniuse-lite/package.json
+./apps/web/node_modules/fraction.js/package.json
+./apps/web/node_modules/postcss-value-parser/package.json
+./apps/web/node_modules/baseline-browser-mapping/package.json
+./apps/web/node_modules/electron-to-chromium/package.json
+./apps/web/node_modules/node-releases/package.json
+./apps/web/node_modules/update-browserslist-db/package.json
+./apps/web/node_modules/ms/package.json
+./apps/web/node_modules/yallist/package.json
+./apps/web/node_modules/nanoid/async/package.json
+./apps/web/node_modules/nanoid/non-secure/package.json
+./apps/web/node_modules/nanoid/url-alphabet/package.json
+./apps/web/node_modules/nanoid/package.json
+./apps/web/node_modules/source-map-js/package.json
+./apps/web/node_modules/loose-envify/package.json
+./apps/web/node_modules/scheduler/package.json
+./apps/web/node_modules/arg/package.json
+./apps/web/node_modules/didyoumean/package.json
+./apps/web/node_modules/dlv/package.json
+./apps/web/node_modules/glob-parent/package.json
+./apps/web/node_modules/is-glob/package.json
+./apps/web/node_modules/jiti/package.json
+./apps/web/node_modules/lilconfig/package.json
+./apps/web/node_modules/micromatch/package.json
+./apps/web/node_modules/normalize-path/package.json
+./apps/web/node_modules/object-hash/package.json
+./apps/web/node_modules/postcss-import/package.json
+./apps/web/node_modules/postcss-js/package.json
+./apps/web/node_modules/postcss-load-config/package.json
+./apps/web/node_modules/postcss-nested/package.json
+./apps/web/node_modules/postcss-selector-parser/package.json
+./apps/web/node_modules/resolve/test/resolver/symlinked/package/package.json
+./apps/web/node_modules/resolve/test/resolver/browser_field/package.json
+./apps/web/node_modules/resolve/test/resolver/nested_symlinks/mylib/package.json
+./apps/web/node_modules/resolve/test/resolver/baz/package.json
+./apps/web/node_modules/resolve/test/resolver/dot_main/package.json
+./apps/web/node_modules/resolve/test/resolver/dot_slash_main/package.json
+./apps/web/node_modules/resolve/test/resolver/false_main/package.json
+./apps/web/node_modules/resolve/test/resolver/incorrect_main/package.json
+./apps/web/node_modules/resolve/test/resolver/multirepo/packages/package-a/package.json
+./apps/web/node_modules/resolve/test/resolver/multirepo/packages/package-b/package.json
+./apps/web/node_modules/resolve/test/resolver/multirepo/package.json
+./apps/web/node_modules/resolve/test/resolver/invalid_main/package.json
+./apps/web/node_modules/resolve/test/module_dir/zmodules/bbb/package.json
+./apps/web/node_modules/resolve/package.json
+./apps/web/node_modules/sucrase/package.json
+./apps/web/node_modules/anymatch/package.json
+./apps/web/node_modules/braces/package.json
+./apps/web/node_modules/is-binary-path/package.json
+./apps/web/node_modules/readdirp/package.json
+./apps/web/node_modules/picomatch/package.json
+./apps/web/node_modules/fill-range/package.json
+./apps/web/node_modules/merge2/package.json
+./apps/web/node_modules/fastq/package.json
+./apps/web/node_modules/run-parallel/package.json
+./apps/web/node_modules/reusify/package.json
+./apps/web/node_modules/to-regex-range/package.json
+./apps/web/node_modules/binary-extensions/package.json
+./apps/web/node_modules/is-extglob/package.json
+./apps/web/node_modules/read-cache/package.json
+./apps/web/node_modules/camelcase-css/package.json
+./apps/web/node_modules/cssesc/package.json
+./apps/web/node_modules/util-deprecate/package.json
+./apps/web/node_modules/es-errors/package.json
+./apps/web/node_modules/is-core-module/package.json
+./apps/web/node_modules/path-parse/package.json
+./apps/web/node_modules/supports-preserve-symlinks-flag/package.json
+./apps/web/node_modules/hasown/package.json
+./apps/web/node_modules/function-bind/package.json
+./apps/web/node_modules/queue-microtask/package.json
+./apps/web/node_modules/commander/package.json
+./apps/web/node_modules/lines-and-columns/package.json
+./apps/web/node_modules/mz/package.json
+./apps/web/node_modules/pirates/package.json
+./apps/web/node_modules/tinyglobby/node_modules/fdir/package.json
+./apps/web/node_modules/tinyglobby/node_modules/picomatch/package.json
+./apps/web/node_modules/tinyglobby/package.json
+./apps/web/node_modules/ts-interface-checker/package.json
+./apps/web/node_modules/any-promise/package.json
+./apps/web/node_modules/object-assign/package.json
+./apps/web/node_modules/thenify-all/package.json
+./apps/web/node_modules/thenify/package.json
+./apps/web/node_modules/is-number/package.json
+./apps/web/node_modules/escalade/package.json
+./apps/web/node_modules/esbuild/package.json
+./apps/web/node_modules/rollup/dist/es/package.json
+./apps/web/node_modules/rollup/package.json
+./apps/web/node_modules/chokidar/node_modules/glob-parent/package.json
+./apps/web/node_modules/chokidar/package.json
+./apps/web/node_modules/fast-glob/node_modules/glob-parent/package.json
+./apps/web/node_modules/fast-glob/package.json
+./backup-seguridad-20261028-114838/attendance.controller.ts
+./backup-seguridad-20261028-114838/audit.controller.ts
+
+========== ESQUEMA PRISMA ==========
+--- ./apps/api/prisma/schema.prisma ---
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum AttendanceType {
+  ENTRY
+  BREAK_START
+  BREAK_END
+  EXIT
+}
+
+enum AttendanceMethod {
+  FINGERPRINT
+  PIN
+  ADMIN_MANUAL
+}
+
+enum AttendanceStatus {
+  CONFIRMED
+  PENDING_REVIEW
+  VOIDED
+}
+
+enum ShiftMode {
+  TWO_PUNCH
+  FOUR_PUNCH
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique @db.VarChar(190)
+  passwordHash String     @db.VarChar(255)
+  fullName     String     @db.VarChar(190)
+  status       UserStatus @default(ACTIVE)
+  isSuperAdmin Boolean    @default(false)
+  permissions  UserPermission[]
+  auditLogs    AuditLog[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  code        String           @unique @db.VarChar(100)
+  description String           @db.VarChar(255)
+  users       UserPermission[]
+}
+
+model UserPermission {
+  userId       String
+  permissionId String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permissionId])
+}
+
+model Department {
+  id        String     @id @default(cuid())
+  name      String     @unique @db.VarChar(120)
+  active    Boolean    @default(true)
+  employees Employee[]
+}
+
+model Branch {
+  id        String     @id @default(cuid())
+  name      String     @unique @db.VarChar(120)
+  address   String?    @db.VarChar(255)
+  active    Boolean    @default(true)
+  employees Employee[]
+}
+
+model Employee {
+  id                    String                 @id @default(cuid())
+  rut                   String                 @unique @db.VarChar(20)
+  firstName             String                 @db.VarChar(100)
+  lastName              String                 @db.VarChar(100)
+  position              String?                @db.VarChar(120)
+  departmentId          String?
+  branchId              String?
+  hiredAt               DateTime?
+  status                EmployeeStatus          @default(ACTIVE)
+  department             Department?             @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  branch                 Branch?                 @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  shiftAssignments       ShiftAssignment[]
+  sessions               WorkSession[]
+  attendance             AttendanceRecord[]
+  biometricCredentials   BiometricCredential[]
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+
+  @@index([lastName, firstName])
+  @@index([status])
+}
+
+model Shift {
+  id               String            @id @default(cuid())
+  name             String            @unique @db.VarChar(120)
+  startTime        String            @db.VarChar(5)
+  endTime          String            @db.VarChar(5)
+  breakStart       String?           @db.VarChar(5)
+  breakEnd         String?           @db.VarChar(5)
+  toleranceMinutes Int               @default(0)
+  mode             ShiftMode         @default(FOUR_PUNCH)
+  crossesMidnight  Boolean           @default(false)
+  active           Boolean           @default(true)
+  assignments      ShiftAssignment[]
+  createdAt        DateTime          @default(now())
+}
+
+model ShiftAssignment {
+  id         String   @id @default(cuid())
+  employeeId String
+  shiftId    String
+  validFrom  DateTime
+  validTo    DateTime?
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  shift      Shift    @relation(fields: [shiftId], references: [id])
+
+  @@index([employeeId, validFrom, validTo])
+}
+
+model WorkSession {
+  id         String             @id @default(cuid())
+  employeeId String
+  workDate   DateTime           @db.Date
+  shiftId    String?
+  employee   Employee           @relation(fields: [employeeId], references: [id])
+  records    AttendanceRecord[]
+  createdAt  DateTime           @default(now())
+
+  @@unique([employeeId, workDate])
+}
+
+model AttendanceRecord {
+  id              String                  @id @default(cuid())
+  eventId         String                  @unique @db.VarChar(190)
+  employeeId      String
+  sessionId       String?
+  type            AttendanceType
+  method          AttendanceMethod
+  status          AttendanceStatus         @default(CONFIRMED)
+  occurredAt      DateTime
+  receivedAt      DateTime                @default(now())
+  deviceId        String?                 @db.VarChar(190)
+  manualReason    String?                 @db.Text
+  createdByUserId String?
+  employee        Employee                @relation(fields: [employeeId], references: [id])
+  session         WorkSession?            @relation(fields: [sessionId], references: [id])
+  manualChange    ManualAttendanceChange?
+  createdAt       DateTime                @default(now())
+
+  @@index([employeeId, occurredAt])
+  @@index([sessionId, type])
+}
+
+model ManualAttendanceChange {
+  id                String           @id @default(cuid())
+  attendanceRecordId String          @unique
+  action             String          @db.VarChar(30)
+  reason             String          @db.Text
+  adminUserId        String
+  beforeJson         Json?
+  afterJson          Json?
+  record             AttendanceRecord @relation(fields: [attendanceRecordId], references: [id])
+  createdAt          DateTime         @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String   @db.VarChar(100)
+  entityType String   @db.VarChar(100)
+  entityId   String?  @db.VarChar(190)
+  beforeJson Json?
+  afterJson  Json?
+  reason     String?  @db.Text
+  requestId  String?  @db.VarChar(190)
+  createdAt  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model BiometricCredential {
+  id               String   @id @default(cuid())
+  employeeId       String
+  deviceTemplateId String   @unique @db.VarChar(190)
+  active           Boolean  @default(true)
+  enrolledBy       String
+  enrolledAt       DateTime @default(now())
+  revokedAt        DateTime?
+  employee         Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId, active])
+}
+
+model BiometricDevice {
+  id            String        @id @default(cuid())
+  name          String        @db.VarChar(120)
+  deviceKeyHash String        @db.VarChar(255)
+  active        Boolean       @default(true)
+  lastSeenAt    DateTime?
+  events        DeviceEvent[]
+  createdAt     DateTime      @default(now())
+}
+
+model DeviceEvent {
+  id         String          @id @default(cuid())
+  eventId    String          @unique @db.VarChar(190)
+  deviceId   String
+  receivedAt DateTime        @default(now())
+  result     String          @db.VarChar(40)
+  details    String?         @db.VarChar(255)
+  device     BiometricDevice @relation(fields: [deviceId], references: [id])
+
+  @@index([deviceId, receivedAt])
+}
+
+model AlternativeMethodAuthorization {
+  id         String   @id @default(cuid())
+  employeeId String
+  method     String   @db.VarChar(40)
+  reason     String   @db.Text
+  approvedBy String
+  validFrom  DateTime
+  validUntil DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([employeeId, validFrom, validUntil])
+}
+
+model CompanySettings {
+  id        String   @id @default(cuid())
+  key       String   @unique @db.VarChar(100)
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model LoginSession {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique @db.VarChar(255)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+model ReportExport {
+  id         String   @id @default(cuid())
+  userId     String
+  reportType String   @db.VarChar(80)
+  filtersJson Json
+  createdAt  DateTime @default(now())
+}
+
+model DataRetentionPolicy {
+  id            String   @id @default(cuid())
+  recordType    String   @unique @db.VarChar(100)
+  retentionDays Int
+  legalBasis    String   @db.Text
+  updatedAt     DateTime @updatedAt
+}
+--- ./apps/api/node_modules/.prisma/client/schema.prisma ---
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum AttendanceType {
+  ENTRY
+  BREAK_START
+  BREAK_END
+  EXIT
+}
+
+enum AttendanceMethod {
+  FINGERPRINT
+  PIN
+  ADMIN_MANUAL
+}
+
+enum AttendanceStatus {
+  CONFIRMED
+  PENDING_REVIEW
+  VOIDED
+}
+
+enum ShiftMode {
+  TWO_PUNCH
+  FOUR_PUNCH
+}
+
+model User {
+  id           String           @id @default(cuid())
+  email        String           @unique @db.VarChar(190)
+  passwordHash String           @db.VarChar(255)
+  fullName     String           @db.VarChar(190)
+  status       UserStatus       @default(ACTIVE)
+  isSuperAdmin Boolean          @default(false)
+  permissions  UserPermission[]
+  auditLogs    AuditLog[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  code        String           @unique @db.VarChar(100)
+  description String           @db.VarChar(255)
+  users       UserPermission[]
+}
+
+model UserPermission {
+  userId       String
+  permissionId String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permissionId])
+}
+
+model Department {
+  id        String     @id @default(cuid())
+  name      String     @unique @db.VarChar(120)
+  active    Boolean    @default(true)
+  employees Employee[]
+}
+
+model Branch {
+  id        String     @id @default(cuid())
+  name      String     @unique @db.VarChar(120)
+  address   String?    @db.VarChar(255)
+  active    Boolean    @default(true)
+  employees Employee[]
+}
+
+model Employee {
+  id                   String                @id @default(cuid())
+  rut                  String                @unique @db.VarChar(20)
+  firstName            String                @db.VarChar(100)
+  lastName             String                @db.VarChar(100)
+  position             String?               @db.VarChar(120)
+  departmentId         String?
+  branchId             String?
+  hiredAt              DateTime?
+  status               EmployeeStatus        @default(ACTIVE)
+  department           Department?           @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  branch               Branch?               @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  shiftAssignments     ShiftAssignment[]
+  sessions             WorkSession[]
+  attendance           AttendanceRecord[]
+  biometricCredentials BiometricCredential[]
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  @@index([lastName, firstName])
+  @@index([status])
+}
+
+model Shift {
+  id               String            @id @default(cuid())
+  name             String            @unique @db.VarChar(120)
+  startTime        String            @db.VarChar(5)
+  endTime          String            @db.VarChar(5)
+  breakStart       String?           @db.VarChar(5)
+  breakEnd         String?           @db.VarChar(5)
+  toleranceMinutes Int               @default(0)
+  mode             ShiftMode         @default(FOUR_PUNCH)
+  crossesMidnight  Boolean           @default(false)
+  active           Boolean           @default(true)
+  assignments      ShiftAssignment[]
+  createdAt        DateTime          @default(now())
+}
+
+model ShiftAssignment {
+  id         String    @id @default(cuid())
+  employeeId String
+  shiftId    String
+  validFrom  DateTime
+  validTo    DateTime?
+  employee   Employee  @relation(fields: [employeeId], references: [id])
+  shift      Shift     @relation(fields: [shiftId], references: [id])
+
+  @@index([employeeId, validFrom, validTo])
+}
+
+model WorkSession {
+  id         String             @id @default(cuid())
+  employeeId String
+  workDate   DateTime           @db.Date
+  shiftId    String?
+  employee   Employee           @relation(fields: [employeeId], references: [id])
+  records    AttendanceRecord[]
+  createdAt  DateTime           @default(now())
+
+  @@unique([employeeId, workDate])
+}
+
+model AttendanceRecord {
+  id              String                  @id @default(cuid())
+  eventId         String                  @unique @db.VarChar(190)
+  employeeId      String
+  sessionId       String?
+  type            AttendanceType
+  method          AttendanceMethod
+  status          AttendanceStatus        @default(CONFIRMED)
+  occurredAt      DateTime
+  receivedAt      DateTime                @default(now())
+  deviceId        String?                 @db.VarChar(190)
+  manualReason    String?                 @db.Text
+  createdByUserId String?
+  employee        Employee                @relation(fields: [employeeId], references: [id])
+  session         WorkSession?            @relation(fields: [sessionId], references: [id])
+  manualChange    ManualAttendanceChange?
+  createdAt       DateTime                @default(now())
+
+  @@index([employeeId, occurredAt])
+  @@index([sessionId, type])
+}
+
+model ManualAttendanceChange {
+  id                 String           @id @default(cuid())
+  attendanceRecordId String           @unique
+  action             String           @db.VarChar(30)
+  reason             String           @db.Text
+  adminUserId        String
+  beforeJson         Json?
+  afterJson          Json?
+  record             AttendanceRecord @relation(fields: [attendanceRecordId], references: [id])
+  createdAt          DateTime         @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String   @db.VarChar(100)
+  entityType String   @db.VarChar(100)
+  entityId   String?  @db.VarChar(190)
+  beforeJson Json?
+  afterJson  Json?
+  reason     String?  @db.Text
+  requestId  String?  @db.VarChar(190)
+  createdAt  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model BiometricCredential {
+  id               String    @id @default(cuid())
+  employeeId       String
+  deviceTemplateId String    @unique @db.VarChar(190)
+  active           Boolean   @default(true)
+  enrolledBy       String
+  enrolledAt       DateTime  @default(now())
+  revokedAt        DateTime?
+  employee         Employee  @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId, active])
+}
+
+model BiometricDevice {
+  id            String        @id @default(cuid())
+  name          String        @db.VarChar(120)
+  deviceKeyHash String        @db.VarChar(255)
+  active        Boolean       @default(true)
+  lastSeenAt    DateTime?
+  events        DeviceEvent[]
+  createdAt     DateTime      @default(now())
+}
+
+model DeviceEvent {
+  id         String          @id @default(cuid())
+  eventId    String          @unique @db.VarChar(190)
+  deviceId   String
+  receivedAt DateTime        @default(now())
+  result     String          @db.VarChar(40)
+  details    String?         @db.VarChar(255)
+  device     BiometricDevice @relation(fields: [deviceId], references: [id])
+
+  @@index([deviceId, receivedAt])
+}
+
+model AlternativeMethodAuthorization {
+  id         String    @id @default(cuid())
+  employeeId String
+  method     String    @db.VarChar(40)
+  reason     String    @db.Text
+  approvedBy String
+  validFrom  DateTime
+  validUntil DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([employeeId, validFrom, validUntil])
+}
+
+model CompanySettings {
+  id        String   @id @default(cuid())
+  key       String   @unique @db.VarChar(100)
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model LoginSession {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique @db.VarChar(255)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+model ReportExport {
+  id          String   @id @default(cuid())
+  userId      String
+  reportType  String   @db.VarChar(80)
+  filtersJson Json
+  createdAt   DateTime @default(now())
+}
+
+model DataRetentionPolicy {
+  id            String   @id @default(cuid())
+  recordType    String   @unique @db.VarChar(100)
+  retentionDays Int
+  legalBasis    String   @db.Text
+  updatedAt     DateTime @updatedAt
+}
+root@gyquoxm8:/home/asistencia#
