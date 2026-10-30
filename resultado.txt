@@ -1,0 +1,3957 @@
+root@gyquoxm8:~# cd /home/asistencia
+
+echo "===== ARCHIVOS DEL AGENTE WINDOWS ====="
+find apps/agent-windows -maxdepth 3 -type f \
+  ! -path '*/bin/*' ! -path '*/obj/*' -print
+
+echo "===== PROYECTO .NET ====="
+find apps/agent-windows -maxdepth 2 -name "*.csproj" -exec sh -c 'echo "=== $1 ==="; cat "$1"' _ {} \;
+
+echo "===== MODELOS PRISMA BIOMETRIA Y DISPOSITIVOS ====="
+grep -n -A55 -B8 -E 'model (BiometricCredential|Device|DeviceEvent|AttendanceRecord)|enum (AttendanceType|AttendanceMethod|AttendanceStatus)' apps/api/prisma/schema.prisma
+
+echo "===== CONTROLADORES DE DISPOSITIVOS Y ASISTENCIA ====="
+grep -Rl -E "@Controller\\('(device|attendance)" apps/api/src
+
+echo "===== CONTROLADOR DE DISPOSITIVOS ====="
+for f in $(grep -Rl "@Controller('device" apps/api/src); do
+  echo "=== $f ==="
+  sed -n '1,360p' "$f"
+done
+
+echo "===== CONTROLADOR DE ASISTENCIA ====="
+for f in $(grep -Rl "@Controller('attendance')" apps/api/src); do
+  echo "=== $f ==="
+  sed -n '1,380p' "$f"
+done
+
+echo "===== REGISTRO DE MODULOS ====="
+sed -n '1,280p' apps/api/src/app.module.ts
+
+echo "===== COMPONENTE DE MARCACION ====="
+grep -n -A230 -B10 'function AttendanceTerminal' apps/web/src/App.tsx
+
+echo "===== FUNCIONES BIOMETRICAS DEL FRONTEND ====="
+grep -n -i -A35 -B12 -E 'biometric|huella|fingerprint|enrol|revok|credential' apps/web/src/App.tsx
+
+echo "===== CONFIGURACION CORS Y VALIDACION API ====="
+sed -n '1,220p' apps/api/src/main.ts
+===== ARCHIVOS DEL AGENTE WINDOWS =====
+apps/agent-windows/IFingerprintReader.cs
+apps/agent-windows/README.md
+apps/agent-windows/AttendanceAgent.csproj
+apps/agent-windows/Program.cs
+===== PROYECTO .NET =====
+=== apps/agent-windows/AttendanceAgent.csproj ===
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+</Project>
+===== MODELOS PRISMA BIOMETRIA Y DISPOSITIVOS =====
+13-  DISABLED
+14-}
+15-
+16-enum EmployeeStatus {
+17-  ACTIVE
+18-  INACTIVE
+19-}
+20-
+21:enum AttendanceType {
+22-  ENTRY
+23-  BREAK_START
+24-  BREAK_END
+25-  EXIT
+26-}
+27-
+28:enum AttendanceMethod {
+29-  FINGERPRINT
+30-  PIN
+31-  ADMIN_MANUAL
+32-}
+33-
+34:enum AttendanceStatus {
+35-  CONFIRMED
+36-  PENDING_REVIEW
+37-  VOIDED
+38-}
+39-
+40-enum ShiftMode {
+41-  TWO_PUNCH
+42-  FOUR_PUNCH
+43-}
+44-
+45-enum OvertimeAuthorizationStatus {
+46-  ACTIVE
+47-  CANCELLED
+48-}
+49-
+50-model User {
+51-  id           String     @id @default(cuid())
+52-  email        String     @unique @db.VarChar(190)
+53-  passwordHash String     @db.VarChar(255)
+54-  fullName     String     @db.VarChar(190)
+55-  status       UserStatus @default(ACTIVE)
+56-  isSuperAdmin Boolean    @default(false)
+57-  permissions  UserPermission[]
+58-  auditLogs    AuditLog[]
+59-  createdAt    DateTime   @default(now())
+60-  updatedAt    DateTime   @updatedAt
+61-  overtimeAuthorizations OvertimeAuthorization[] @relation("OvertimeAuthorizedBy")
+62-overtimeCancellations  OvertimeAuthorization[] @relation("OvertimeCancelledBy")
+63-}
+64-
+65-model Permission {
+66-  id          String           @id @default(cuid())
+67-  code        String           @unique @db.VarChar(100)
+68-  description String           @db.VarChar(255)
+69-  users       UserPermission[]
+70-}
+71-
+72-model UserPermission {
+73-  userId       String
+74-  permissionId String
+75-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+76-  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+77-
+78-  @@id([userId, permissionId])
+79-}
+80-
+81-model Department {
+82-  id        String     @id @default(cuid())
+83-  name      String     @unique @db.VarChar(120)
+84-  active    Boolean    @default(true)
+85-  employees Employee[]
+86-}
+87-
+88-model Branch {
+89-  id        String     @id @default(cuid())
+--
+151-  shiftId    String?
+152-  employee   Employee           @relation(fields: [employeeId], references: [id])
+153-  records    AttendanceRecord[]
+154-  createdAt  DateTime           @default(now())
+155-
+156-  @@unique([employeeId, workDate])
+157-}
+158-
+159:model AttendanceRecord {
+160-  id              String                  @id @default(cuid())
+161-  eventId         String                  @unique @db.VarChar(190)
+162-  employeeId      String
+163-  sessionId       String?
+164-  type            AttendanceType
+165-  method          AttendanceMethod
+166-  status          AttendanceStatus         @default(CONFIRMED)
+167-  occurredAt      DateTime
+168-  receivedAt      DateTime                @default(now())
+169-  deviceId        String?                 @db.VarChar(190)
+170-  manualReason    String?                 @db.Text
+171-  createdByUserId String?
+172-  employee        Employee                @relation(fields: [employeeId], references: [id])
+173-  session         WorkSession?            @relation(fields: [sessionId], references: [id])
+174-  manualChange    ManualAttendanceChange?
+175-  createdAt       DateTime                @default(now())
+176-
+177-  @@index([employeeId, occurredAt])
+178-  @@index([sessionId, type])
+179-}
+180-
+181-model ManualAttendanceChange {
+182-  id                String           @id @default(cuid())
+183-  attendanceRecordId String          @unique
+184-  action             String          @db.VarChar(30)
+185-  reason             String          @db.Text
+186-  adminUserId        String
+187-  beforeJson         Json?
+188-  afterJson          Json?
+189-  record             AttendanceRecord @relation(fields: [attendanceRecordId], references: [id])
+190-  createdAt          DateTime         @default(now())
+191-}
+192-
+193-model AuditLog {
+194-  id         String   @id @default(cuid())
+195-  userId     String?
+196-  action     String   @db.VarChar(100)
+197-  entityType String   @db.VarChar(100)
+198-  entityId   String?  @db.VarChar(190)
+199-  beforeJson Json?
+200-  afterJson  Json?
+201-  reason     String?  @db.Text
+202-  requestId  String?  @db.VarChar(190)
+203-  createdAt  DateTime @default(now())
+204-  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+205-
+206-  @@index([entityType, entityId, createdAt])
+207-  @@index([userId, createdAt])
+208-}
+209-
+210:model BiometricCredential {
+211-  id               String   @id @default(cuid())
+212-  employeeId       String
+213-  deviceTemplateId String   @unique @db.VarChar(190)
+214-  active           Boolean  @default(true)
+215-  enrolledBy       String
+216-  enrolledAt       DateTime @default(now())
+217-  revokedAt        DateTime?
+218-  employee         Employee @relation(fields: [employeeId], references: [id])
+219-
+220-  @@index([employeeId, active])
+221-}
+222-
+223-model BiometricDevice {
+224-  id            String        @id @default(cuid())
+225-  name          String        @db.VarChar(120)
+226-  deviceKeyHash String        @db.VarChar(255)
+227-  active        Boolean       @default(true)
+228-  lastSeenAt    DateTime?
+229-  events        DeviceEvent[]
+230-  createdAt     DateTime      @default(now())
+231-}
+232-
+233:model DeviceEvent {
+234-  id         String          @id @default(cuid())
+235-  eventId    String          @unique @db.VarChar(190)
+236-  deviceId   String
+237-  receivedAt DateTime        @default(now())
+238-  result     String          @db.VarChar(40)
+239-  details    String?         @db.VarChar(255)
+240-  device     BiometricDevice @relation(fields: [deviceId], references: [id])
+241-
+242-  @@index([deviceId, receivedAt])
+243-}
+244-
+245-model AlternativeMethodAuthorization {
+246-  id         String   @id @default(cuid())
+247-  employeeId String
+248-  method     String   @db.VarChar(40)
+249-  reason     String   @db.Text
+250-  approvedBy String
+251-  validFrom  DateTime
+252-  validUntil DateTime?
+253-  revokedAt  DateTime?
+254-  createdAt  DateTime @default(now())
+255-
+256-  @@index([employeeId, validFrom, validUntil])
+257-}
+258-
+259-model CompanySettings {
+260-  id        String   @id @default(cuid())
+261-  key       String   @unique @db.VarChar(100)
+262-  value     Json
+263-  updatedAt DateTime @updatedAt
+264-}
+265-
+266-model LoginSession {
+267-  id        String    @id @default(cuid())
+268-  userId    String
+269-  tokenHash String    @unique @db.VarChar(255)
+270-  expiresAt DateTime
+271-  revokedAt DateTime?
+272-  createdAt DateTime  @default(now())
+273-
+274-  @@index([userId, expiresAt])
+275-}
+276-
+277-model ReportExport {
+278-  id         String   @id @default(cuid())
+279-  userId     String
+280-  reportType String   @db.VarChar(80)
+281-  filtersJson Json
+282-  createdAt  DateTime @default(now())
+283-}
+284-
+285-model DataRetentionPolicy {
+286-  id            String   @id @default(cuid())
+287-  recordType    String   @unique @db.VarChar(100)
+288-  retentionDays Int
+===== CONTROLADORES DE DISPOSITIVOS Y ASISTENCIA =====
+apps/api/src/attendance.controller.ts
+apps/api/src/attendance.controller.ts.backup-20261028-133644
+apps/api/src/attendance.controller.ts.bak-trazabilidad
+apps/api/src/attendance.controller.ts.bak-trazabilidad-20261028-141237
+apps/api/src/biometric-device.controller.ts
+apps/api/src/biometric-device.controller.ts.backup-20261029-083057
+apps/api/src/biometric-device.controller.ts.bak-events
+apps/api/src/biometric-device.controller.ts.bak-before-events
+apps/api/src/biometric-device.controller.ts.bak-duplicate-fix-20261029-123715
+apps/api/src/biometric-device.controller.ts.bak-503
+apps/api/src/biometric-device.controller.ts.backup-20261029
+apps/api/src/attendance.controller.ts.backup-20261029
+===== CONTROLADOR DE DISPOSITIVOS =====
+=== apps/api/src/biometric-device.controller.ts ===
+import {
+  Controller,
+  Get,
+  Post,
+  Headers,
+  Body,
+  BadRequestException,
+  ConflictException,
+  UnauthorizedException,
+  ServiceUnavailableException,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiExcludeController } from '@nestjs/swagger';
+import {
+  IsISO8601,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
+import { Prisma, AttendanceType } from '@prisma/client';
+import { createHash, timingSafeEqual } from 'node:crypto';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { PermissionsGuard } from './permissions.guard';
+import { RequirePermissions } from './permissions.decorator';
+import { PrismaService } from './prisma.service';
+
+class BiometricPunchDto {
+  @IsString()
+  @MinLength(8)
+  @MaxLength(190)
+  eventId!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(190)
+  deviceTemplateId!: string;
+
+  @IsISO8601()
+  occurredAt!: string;
+}
+
+const TIME_ZONE = 'America/Santiago';
+
+type LocalParts = {
+  date: string;
+  minute: number;
+};
+
+function getLocalParts(date: Date): LocalParts {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+
+  const value = (type: string) =>
+    parts.find(part => part.type === type)?.value ?? '';
+
+  return {
+    date: `${value('year')}-${value('month')}-${value('day')}`,
+    minute: Number(value('hour')) * 60 + Number(value('minute')),
+  };
+}
+
+function addDays(date: string, days: number): string {
+  const value = new Date(`${date}T00:00:00.000Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
+function dateAtUtcMidnight(date: string): Date {
+  return new Date(`${date}T00:00:00.000Z`);
+}
+
+function timeToMinutes(value: string): number {
+  const [hours, minutes] = value.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+function isInsideShift(
+  localMinute: number,
+  shift: {
+    startTime: string;
+    endTime: string;
+    toleranceMinutes: number;
+    crossesMidnight: boolean;
+  },
+): boolean {
+  const start = timeToMinutes(shift.startTime);
+  const end = timeToMinutes(shift.endTime);
+  const crosses = shift.crossesMidnight || end <= start;
+  const duration = crosses ? end + 1440 - start : end - start;
+
+  let offset = localMinute - start;
+
+  if (crosses && offset < 0) {
+    offset += 1440;
+  }
+
+  return (
+    offset >= -shift.toleranceMinutes &&
+    offset <= duration + shift.toleranceMinutes
+  );
+}
+
+function expectedPunchTypes(mode: string): AttendanceType[] {
+  return mode === 'TWO_PUNCH'
+    ? [AttendanceType.ENTRY, AttendanceType.EXIT]
+    : [
+        AttendanceType.ENTRY,
+        AttendanceType.BREAK_START,
+        AttendanceType.BREAK_END,
+        AttendanceType.EXIT,
+      ];
+}
+
+@ApiExcludeController()
+@Controller('device')
+export class BiometricDeviceController {
+  constructor(private readonly prisma: PrismaService) {}
+
+  private verifySecret(
+    received: string | undefined,
+    storedHash: string,
+  ): boolean {
+    if (!received || received.length < 32 || received.length > 512) {
+      return false;
+    }
+
+    const receivedHash = createHash('sha256')
+      .update(received, 'utf8')
+      .digest();
+
+    const expected = Buffer.from(storedHash, 'hex');
+
+    if (expected.length !== receivedHash.length) {
+      return false;
+    }
+
+    return timingSafeEqual(receivedHash, expected);
+  }
+
+  private async authenticate(
+    deviceId: string,
+    secret: string | undefined,
+  ) {
+    if (!deviceId || deviceId.length > 190 || !secret) {
+      throw new UnauthorizedException('Dispositivo no autenticado');
+    }
+
+    const device = await this.prisma.biometricDevice.findUnique({
+      where: { id: deviceId },
+      select: {
+        id: true,
+        active: true,
+        deviceKeyHash: true,
+      },
+    });
+
+    if (
+      !device ||
+      !device.active ||
+      !this.verifySecret(secret, device.deviceKeyHash)
+    ) {
+      throw new UnauthorizedException('Dispositivo no autenticado');
+    }
+
+    return device;
+  }
+
+  @Post('punch')
+  async punch(
+    @Headers('x-device-id') deviceId: string | undefined,
+    @Headers('x-device-secret') secret: string | undefined,
+    @Body() dto: BiometricPunchDto,
+  ) {
+    const device = await this.authenticate(deviceId ?? '', secret);
+    const occurredAt = new Date(dto.occurredAt);
+
+    if (
+      !Number.isFinite(occurredAt.getTime()) ||
+      occurredAt.getTime() > Date.now() + 60_000 ||
+      occurredAt.getTime() < Date.now() - 7 * 24 * 60 * 60 * 1000
+    ) {
+      throw new BadRequestException(
+        'La fecha de la marcación no es válida o está fuera del intervalo permitido',
+      );
+    }
+
+    const credential = await this.prisma.biometricCredential.findUnique({
+      where: { deviceTemplateId: dto.deviceTemplateId },
+      include: { employee: true },
+    });
+
+    if (
+      !credential ||
+      !credential.active ||
+      credential.revokedAt ||
+      credential.employee.status !== 'ACTIVE'
+    ) {
+      throw new BadRequestException(
+        'No existe una credencial biométrica activa para un trabajador activo',
+      );
+    }
+
+    const local = getLocalParts(occurredAt);
+    const previousDate = addDays(local.date, -1);
+
+    try {
+      return await this.prisma.$transaction(
+        async tx => {
+          const priorEvent = await tx.deviceEvent.findUnique({
+            where: { eventId: dto.eventId },
+          });
+
+          if (priorEvent) {
+            if (priorEvent.deviceId !== device.id) {
+              throw new ConflictException(
+                'El identificador del evento ya fue utilizado',
+              );
+            }
+
+            const priorRecord = await tx.attendanceRecord.findUnique({
+              where: { eventId: dto.eventId },
+              select: { id: true, type: true, status: true },
+            });
+
+            return {
+              ok: true,
+              duplicate: true,
+              eventId: dto.eventId,
+              result: priorEvent.result,
+              attendanceRecordId: priorRecord?.id ?? null,
+              type: priorRecord?.type ?? null,
+              status: priorRecord?.status ?? null,
+            };
+          }
+
+          // Las asignaciones se consultan por fecha laboral, no comparando
+          // directamente una fecha de vigencia con la hora de la marcación.
+          const assignments = await tx.shiftAssignment.findMany({
+            where: {
+              employeeId: credential.employeeId,
+              validFrom: { lte: dateAtUtcMidnight(local.date) },
+              OR: [
+                { validTo: null },
+                { validTo: { gte: dateAtUtcMidnight(previousDate) } },
+              ],
+              shift: { active: true },
+            },
+            include: { shift: true },
+            orderBy: { validFrom: 'desc' },
+          });
+
+          // Para una marcación después de medianoche, primero se comprueba
+          // si pertenece a un turno nocturno iniciado el día anterior.
+          const candidateAssignments = assignments.filter(assignment => {
+            const validFrom = assignment.validFrom
+              .toISOString()
+              .slice(0, 10);
+            const validTo = assignment.validTo
+              ? assignment.validTo.toISOString().slice(0, 10)
+              : null;
+
+            const currentDateValid =
+              validFrom <= local.date &&
+              (!validTo || validTo >= local.date);
+
+            const previousDateValid =
+              validFrom <= previousDate &&
+              (!validTo || validTo >= previousDate);
+
+            return currentDateValid || previousDateValid;
+          });
+
+          const matchingOvernight = candidateAssignments.find(assignment => {
+            const validFrom = assignment.validFrom
+              .toISOString()
+              .slice(0, 10);
+            const validTo = assignment.validTo
+              ? assignment.validTo.toISOString().slice(0, 10)
+              : null;
+
+            const previousDateValid =
+              validFrom <= previousDate &&
+              (!validTo || validTo >= previousDate);
+
+            return (
+              previousDateValid &&
+              assignment.shift.crossesMidnight &&
+              isInsideShift(local.minute, assignment.shift)
+            );
+          });
+
+          const matchingCurrent = candidateAssignments.find(assignment => {
+            const validFrom = assignment.validFrom
+              .toISOString()
+              .slice(0, 10);
+            const validTo = assignment.validTo
+              ? assignment.validTo.toISOString().slice(0, 10)
+              : null;
+
+            return (
+              validFrom <= local.date &&
+              (!validTo || validTo >= local.date) &&
+              isInsideShift(local.minute, assignment.shift)
+            );
+          });
+
+          const currentAssignment = candidateAssignments.find(assignment => {
+            const validFrom = assignment.validFrom
+              .toISOString()
+              .slice(0, 10);
+            const validTo = assignment.validTo
+              ? assignment.validTo.toISOString().slice(0, 10)
+              : null;
+
+            return (
+              validFrom <= local.date &&
+              (!validTo || validTo >= local.date)
+            );
+          });
+
+          const previousOvernightAssignment =
+            candidateAssignments.find(assignment => {
+              const validFrom = assignment.validFrom
+                .toISOString()
+                .slice(0, 10);
+              const validTo = assignment.validTo
+                ? assignment.validTo.toISOString().slice(0, 10)
+                : null;
+
+              return (
+                validFrom <= previousDate &&
+                (!validTo || validTo >= previousDate) &&
+                assignment.shift.crossesMidnight
+              );
+            });
+
+          const assignment =
+            matchingOvernight ??
+            matchingCurrent ??
+            currentAssignment ??
+            previousOvernightAssignment ??
+            null;
+
+          const workDateString = matchingOvernight
+            ? previousDate
+            : local.date;
+
+          const workDate = dateAtUtcMidnight(workDateString);
+
+          let session = await tx.workSession.findUnique({
+            where: {
+              employeeId_workDate: {
+                employeeId: credential.employeeId,
+=== apps/api/src/biometric-device.controller.ts.backup-20261029-083057 ===
+import {
+  Controller,
+  Get,
+  Post,
+  Headers,
+  Body,
+  BadRequestException,
+  ConflictException,
+  UnauthorizedException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { ApiExcludeController } from '@nestjs/swagger';
+import { createHash, timingSafeEqual } from 'node:crypto';
+import { IsISO8601, IsString, MaxLength, MinLength } from 'class-validator';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from './prisma.service';
+
+class BiometricPunchDto {
+  @IsString()
+  @MinLength(8)
+  @MaxLength(190)
+  eventId!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(190)
+  deviceTemplateId!: string;
+
+  @IsISO8601()
+  occurredAt!: string;
+}
+
+@ApiExcludeController()
+@Controller('device')
+export class BiometricDeviceController {
+  constructor(private readonly prisma: PrismaService) {}
+
+  private verifySecret(received: string | undefined, storedHash: string): boolean {
+    if (!received || received.length < 32 || received.length > 512) {
+      return false;
+    }
+
+    const receivedHash = createHash('sha256').update(received, 'utf8').digest();
+    const expected = Buffer.from(storedHash, 'hex');
+
+    if (expected.length !== receivedHash.length) {
+      return false;
+    }
+
+    return timingSafeEqual(receivedHash, expected);
+  }
+
+  private async authenticate(deviceId: string, secret: string | undefined) {
+    if (!deviceId || deviceId.length > 190 || !secret) {
+      throw new UnauthorizedException('Dispositivo no autenticado');
+    }
+
+    const device = await this.prisma.biometricDevice.findUnique({
+      where: { id: deviceId },
+      select: { id: true, active: true, deviceKeyHash: true },
+    });
+
+    if (!device || !device.active || !this.verifySecret(secret, device.deviceKeyHash)) {
+      throw new UnauthorizedException('Dispositivo no autenticado');
+    }
+
+    return device;
+  }
+
+
+  @Post('punch')
+  async punch(
+    @Headers('x-device-id') deviceId: string | undefined,
+    @Headers('x-device-secret') secret: string | undefined,
+    @Body() dto: BiometricPunchDto,
+  ) {
+    const device = await this.authenticate(deviceId ?? '', secret);
+
+    const occurredAt = new Date(dto.occurredAt);
+    if (!Number.isFinite(occurredAt.getTime()) ||
+        occurredAt.getTime() > Date.now() + 60_000 ||
+        occurredAt.getTime() < Date.now() - 7 * 24 * 60 * 60 * 1000) {
+      throw new BadRequestException(
+        'La fecha de la marcación no es válida o está fuera del intervalo permitido',
+      );
+    }
+
+    const credential = await this.prisma.biometricCredential.findUnique({
+      where: { deviceTemplateId: dto.deviceTemplateId },
+      include: { employee: true },
+    });
+
+    if (!credential || !credential.active || credential.revokedAt ||
+        credential.employee.status !== 'ACTIVE') {
+      throw new BadRequestException(
+        'No existe una credencial biométrica activa para un trabajador activo',
+      );
+    }
+
+    // Fecha laboral de Chile, independiente de la zona horaria del contenedor.
+    const dateParts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Santiago',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(occurredAt);
+    const part = (type: string) => dateParts.find(p => p.type === type)?.value;
+    const localDate = `${part('year')}-${part('month')}-${part('day')}`;
+    const workDate = new Date(`${localDate}T00:00:00.000Z`);
+
+    try {
+      return await this.prisma.$transaction(async tx => {
+        const priorEvent = await tx.deviceEvent.findUnique({
+          where: { eventId: dto.eventId },
+        });
+
+        if (priorEvent) {
+          if (priorEvent.deviceId !== device.id) {
+            throw new ConflictException('El identificador del evento ya fue utilizado');
+          }
+          return {
+            ok: true,
+            duplicate: true,
+            eventId: dto.eventId,
+            result: priorEvent.result,
+          };
+        }
+
+        const assignment = await tx.shiftAssignment.findFirst({
+          where: {
+            employeeId: credential.employeeId,
+            validFrom: { lte: occurredAt },
+            OR: [{ validTo: null }, { validTo: { gte: occurredAt } }],
+            shift: { active: true },
+          },
+          include: { shift: true },
+          orderBy: { validFrom: 'desc' },
+        });
+
+        const session = await tx.workSession.findUnique({
+          where: {
+            employeeId_workDate: {
+              employeeId: credential.employeeId,
+              workDate,
+            },
+          },
+          include: {
+            records: {
+              where: { status: { not: 'VOIDED' } },
+              orderBy: { occurredAt: 'asc' },
+            },
+          },
+        });
+
+        const expectedTypes = assignment?.shift.mode === 'TWO_PUNCH'
+          ? ['ENTRY', 'EXIT'] as const
+          : ['ENTRY', 'BREAK_START', 'BREAK_END', 'EXIT'] as const;
+
+        const existingRecords = session?.records ?? [];
+        const expectedType = expectedTypes[existingRecords.length];
+        const invalidSequence =
+          !assignment ||
+          !expectedType ||
+          existingRecords.some(r => r.status === 'PENDING_REVIEW') ||
+          (existingRecords.length > 0 &&
+            occurredAt.getTime() <= existingRecords[existingRecords.length - 1].occurredAt.getTime());
+
+        const result = invalidSequence ? 'PENDING_REVIEW' : 'ACCEPTED';
+
+        await tx.deviceEvent.create({
+          data: {
+            eventId: dto.eventId,
+            deviceId: device.id,
+            result,
+            details: invalidSequence
+              ? 'Secuencia o turno requiere revisión'
+              : `Tipo calculado: ${expectedType}`,
+          },
+        });
+
+        await tx.biometricDevice.update({
+          where: { id: device.id },
+          data: { lastSeenAt: new Date() },
+        });
+
+        if (invalidSequence) {
+          await tx.auditLog.create({
+            data: {
+              action: 'BIOMETRIC_PUNCH_PENDING_REVIEW',
+              entityType: 'DeviceEvent',
+              entityId: dto.eventId,
+              reason: 'Marcación biométrica requiere revisión: turno ausente, secuencia incompleta o tiempo fuera de orden.',
+              afterJson: {
+                deviceId: device.id,
+                employeeId: credential.employeeId,
+                eventId: dto.eventId,
+                occurredAt: occurredAt.toISOString(),
+                workDate: localDate,
+              },
+            },
+          });
+
+          return {
+            ok: true,
+            eventId: dto.eventId,
+            result: 'PENDING_REVIEW',
+            message: 'Evento registrado; requiere revisión administrativa.',
+          };
+        }
+
+        const activeSession = session ?? await tx.workSession.create({
+          data: {
+            employeeId: credential.employeeId,
+            workDate,
+            shiftId: assignment!.shiftId,
+          },
+          include: { records: true },
+        });
+
+        const record = await tx.attendanceRecord.create({
+          data: {
+            eventId: dto.eventId,
+            employeeId: credential.employeeId,
+            sessionId: activeSession.id,
+            type: expectedType!,
+            method: 'FINGERPRINT',
+            status: 'CONFIRMED',
+            occurredAt,
+            deviceId: device.id,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            action: 'BIOMETRIC_PUNCH_CONFIRMED',
+            entityType: 'AttendanceRecord',
+            entityId: record.id,
+            reason: 'Marcación biométrica recibida desde un dispositivo autenticado.',
+            afterJson: {
+              eventId: dto.eventId,
+              deviceId: device.id,
+              employeeId: credential.employeeId,
+              type: expectedType,
+              occurredAt: occurredAt.toISOString(),
+            },
+          },
+        });
+
+        return {
+          ok: true,
+          eventId: dto.eventId,
+          result: 'ACCEPTED',
+          type: expectedType,
+          attendanceRecordId: record.id,
+        };
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error: unknown) {
+      if (error instanceof ConflictException || error instanceof BadRequestException) {
+        throw error;
+      }
+      if (error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002') {
+        return {
+          ok: true,
+          duplicate: true,
+          eventId: dto.eventId,
+          result: 'DUPLICATE',
+        };
+      }
+      throw new ServiceUnavailableException(
+        'No se pudo procesar la marcación. No repitas el evento con un ID nuevo.',
+      );
+    }
+  }
+
+  @Get('status')
+  async status(
+    @Headers('x-device-id') deviceId: string | undefined,
+    @Headers('x-device-secret') secret: string | undefined,
+  ) {
+    const device = await this.authenticate(deviceId ?? '', secret);
+
+    try {
+      await this.prisma.biometricDevice.update({
+        where: { id: device.id },
+        data: { lastSeenAt: new Date() },
+      });
+    } catch {
+      throw new ServiceUnavailableException('No se pudo actualizar el estado del dispositivo');
+    }
+
+    return { ok: true, deviceId: device.id, status: 'authenticated' };
+  }
+}
+=== apps/api/src/biometric-device.controller.ts.bak-events ===
+import {
+  Controller,
+  Get,
+  Post,
+  Headers,
+  Body,
+  BadRequestException,
+  ConflictException,
+  UnauthorizedException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { ApiExcludeController } from '@nestjs/swagger';
+import { createHash, timingSafeEqual } from 'node:crypto';
+import { IsISO8601, IsString, MaxLength, MinLength } from 'class-validator';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from './prisma.service';
+
+class BiometricPunchDto {
+  @IsString()
+  @MinLength(8)
+  @MaxLength(190)
+  eventId!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(190)
+  deviceTemplateId!: string;
+
+  @IsISO8601()
+  occurredAt!: string;
+}
+
+@ApiExcludeController()
+@Controller('device')
+export class BiometricDeviceController {
+  constructor(private readonly prisma: PrismaService) {}
+
+  private verifySecret(received: string | undefined, storedHash: string): boolean {
+    if (!received || received.length < 32 || received.length > 512) {
+      return false;
+    }
+
+    const receivedHash = createHash('sha256').update(received, 'utf8').digest();
+    const expected = Buffer.from(storedHash, 'hex');
+
+    if (expected.length !== receivedHash.length) {
+      return false;
+    }
+
+    return timingSafeEqual(receivedHash, expected);
+  }
+
+  private async authenticate(deviceId: string, secret: string | undefined) {
+    if (!deviceId || deviceId.length > 190 || !secret) {
+      throw new UnauthorizedException('Dispositivo no autenticado');
+    }
+
+    const device = await this.prisma.biometricDevice.findUnique({
+      where: { id: deviceId },
+      select: { id: true, active: true, deviceKeyHash: true },
+    });
+
+    if (!device || !device.active || !this.verifySecret(secret, device.deviceKeyHash)) {
+      throw new UnauthorizedException('Dispositivo no autenticado');
+    }
+
+    return device;
+  }
+
+
+  @Post('punch')
+  async punch(
+    @Headers('x-device-id') deviceId: string | undefined,
+    @Headers('x-device-secret') secret: string | undefined,
+    @Body() dto: BiometricPunchDto,
+  ) {
+    const device = await this.authenticate(deviceId ?? '', secret);
+
+    const occurredAt = new Date(dto.occurredAt);
+    if (!Number.isFinite(occurredAt.getTime()) ||
+        occurredAt.getTime() > Date.now() + 60_000 ||
+        occurredAt.getTime() < Date.now() - 7 * 24 * 60 * 60 * 1000) {
+      throw new BadRequestException(
+        'La fecha de la marcación no es válida o está fuera del intervalo permitido',
+      );
+    }
+
+    const credential = await this.prisma.biometricCredential.findUnique({
+      where: { deviceTemplateId: dto.deviceTemplateId },
+      include: { employee: true },
+    });
+
+    if (!credential || !credential.active || credential.revokedAt ||
+        credential.employee.status !== 'ACTIVE') {
+      throw new BadRequestException(
+        'No existe una credencial biométrica activa para un trabajador activo',
+      );
+    }
+
+    // Fecha laboral de Chile, independiente de la zona horaria del contenedor.
+    const dateParts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Santiago',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(occurredAt);
+    const part = (type: string) => dateParts.find(p => p.type === type)?.value;
+    const localDate = `${part('year')}-${part('month')}-${part('day')}`;
+    const workDate = new Date(`${localDate}T00:00:00.000Z`);
+
+    try {
+      return await this.prisma.$transaction(async tx => {
+        const priorEvent = await tx.deviceEvent.findUnique({
+          where: { eventId: dto.eventId },
+        });
+
+        if (priorEvent) {
+          if (priorEvent.deviceId !== device.id) {
+            throw new ConflictException('El identificador del evento ya fue utilizado');
+          }
+          return {
+            ok: true,
+            duplicate: true,
+            eventId: dto.eventId,
+            result: priorEvent.result,
+          };
+        }
+
+        const assignment = await tx.shiftAssignment.findFirst({
+          where: {
+            employeeId: credential.employeeId,
+            validFrom: { lte: occurredAt },
+            OR: [{ validTo: null }, { validTo: { gte: occurredAt } }],
+            shift: { active: true },
+          },
+          include: { shift: true },
+          orderBy: { validFrom: 'desc' },
+        });
+
+        const session = await tx.workSession.findUnique({
+          where: {
+            employeeId_workDate: {
+              employeeId: credential.employeeId,
+              workDate,
+            },
+          },
+          include: {
+            records: {
+              where: { status: { not: 'VOIDED' } },
+              orderBy: { occurredAt: 'asc' },
+            },
+          },
+        });
+
+        const expectedTypes = assignment?.shift.mode === 'TWO_PUNCH'
+          ? ['ENTRY', 'EXIT'] as const
+          : ['ENTRY', 'BREAK_START', 'BREAK_END', 'EXIT'] as const;
+
+        const existingRecords = session?.records ?? [];
+        const expectedType = expectedTypes[existingRecords.length];
+        const invalidSequence =
+          !assignment ||
+          !expectedType ||
+          existingRecords.some(r => r.status === 'PENDING_REVIEW') ||
+          (existingRecords.length > 0 &&
+            occurredAt.getTime() <= existingRecords[existingRecords.length - 1].occurredAt.getTime());
+
+        const result = invalidSequence ? 'PENDING_REVIEW' : 'ACCEPTED';
+
+        await tx.deviceEvent.create({
+          data: {
+            eventId: dto.eventId,
+            deviceId: device.id,
+            result,
+            details: invalidSequence
+              ? 'Secuencia o turno requiere revisión'
+              : `Tipo calculado: ${expectedType}`,
+          },
+        });
+
+        await tx.biometricDevice.update({
+          where: { id: device.id },
+          data: { lastSeenAt: new Date() },
+        });
+
+        if (invalidSequence) {
+          await tx.auditLog.create({
+            data: {
+              action: 'BIOMETRIC_PUNCH_PENDING_REVIEW',
+              entityType: 'DeviceEvent',
+              entityId: dto.eventId,
+              reason: 'Marcación biométrica requiere revisión: turno ausente, secuencia incompleta o tiempo fuera de orden.',
+              afterJson: {
+                deviceId: device.id,
+                employeeId: credential.employeeId,
+                eventId: dto.eventId,
+                occurredAt: occurredAt.toISOString(),
+                workDate: localDate,
+              },
+            },
+          });
+
+          return {
+            ok: true,
+            eventId: dto.eventId,
+            result: 'PENDING_REVIEW',
+            message: 'Evento registrado; requiere revisión administrativa.',
+          };
+        }
+
+        const activeSession = session ?? await tx.workSession.create({
+          data: {
+            employeeId: credential.employeeId,
+            workDate,
+            shiftId: assignment!.shiftId,
+          },
+          include: { records: true },
+        });
+
+        const record = await tx.attendanceRecord.create({
+          data: {
+            eventId: dto.eventId,
+            employeeId: credential.employeeId,
+            sessionId: activeSession.id,
+            type: expectedType!,
+            method: 'FINGERPRINT',
+            status: 'CONFIRMED',
+            occurredAt,
+            deviceId: device.id,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            action: 'BIOMETRIC_PUNCH_CONFIRMED',
+            entityType: 'AttendanceRecord',
+            entityId: record.id,
+            reason: 'Marcación biométrica recibida desde un dispositivo autenticado.',
+            afterJson: {
+              eventId: dto.eventId,
+              deviceId: device.id,
+              employeeId: credential.employeeId,
+              type: expectedType,
+              occurredAt: occurredAt.toISOString(),
+            },
+          },
+        });
+
+        return {
+          ok: true,
+          eventId: dto.eventId,
+          result: 'ACCEPTED',
+          type: expectedType,
+          attendanceRecordId: record.id,
+        };
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error: unknown) {
+      if (error instanceof ConflictException || error instanceof BadRequestException) {
+        throw error;
+      }
+      if (error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002') {
+        return {
+          ok: true,
+          duplicate: true,
+          eventId: dto.eventId,
+          result: 'DUPLICATE',
+        };
+      }
+      throw new ServiceUnavailableException(
+        'No se pudo procesar la marcación. No repitas el evento con un ID nuevo.',
+      );
+    }
+  }
+
+  @Get('status')
+  async status(
+    @Headers('x-device-id') deviceId: string | undefined,
+    @Headers('x-device-secret') secret: string | undefined,
+  ) {
+    const device = await this.authenticate(deviceId ?? '', secret);
+
+    try {
+      await this.prisma.biometricDevice.update({
+        where: { id: device.id },
+        data: { lastSeenAt: new Date() },
+      });
+    } catch {
+      throw new ServiceUnavailableException('No se pudo actualizar el estado del dispositivo');
+    }
+
+    return { ok: true, deviceId: device.id, status: 'authenticated' };
+  }
+}
+=== apps/api/src/biometric-device.controller.ts.bak-before-events ===
+import {
+  Controller,
+  Get,
+  Post,
+  Headers,
+  Body,
+  BadRequestException,
+  ConflictException,
+  UnauthorizedException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { ApiExcludeController } from '@nestjs/swagger';
+import { createHash, timingSafeEqual } from 'node:crypto';
+import { IsISO8601, IsString, MaxLength, MinLength } from 'class-validator';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from './prisma.service';
+
+class BiometricPunchDto {
+  @IsString()
+  @MinLength(8)
+  @MaxLength(190)
+  eventId!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(190)
+  deviceTemplateId!: string;
+
+  @IsISO8601()
+  occurredAt!: string;
+}
+
+@ApiExcludeController()
+@Controller('device')
+export class BiometricDeviceController {
+  constructor(private readonly prisma: PrismaService) {}
+
+  private verifySecret(received: string | undefined, storedHash: string): boolean {
+    if (!received || received.length < 32 || received.length > 512) {
+      return false;
+    }
+
+    const receivedHash = createHash('sha256').update(received, 'utf8').digest();
+    const expected = Buffer.from(storedHash, 'hex');
+
+    if (expected.length !== receivedHash.length) {
+      return false;
+    }
+
+    return timingSafeEqual(receivedHash, expected);
+  }
+
+  private async authenticate(deviceId: string, secret: string | undefined) {
+    if (!deviceId || deviceId.length > 190 || !secret) {
+      throw new UnauthorizedException('Dispositivo no autenticado');
+    }
+
+    const device = await this.prisma.biometricDevice.findUnique({
+      where: { id: deviceId },
+      select: { id: true, active: true, deviceKeyHash: true },
+    });
+
+    if (!device || !device.active || !this.verifySecret(secret, device.deviceKeyHash)) {
+      throw new UnauthorizedException('Dispositivo no autenticado');
+    }
+
+    return device;
+  }
+
+
+  @Post('punch')
+  async punch(
+    @Headers('x-device-id') deviceId: string | undefined,
+    @Headers('x-device-secret') secret: string | undefined,
+    @Body() dto: BiometricPunchDto,
+  ) {
+    const device = await this.authenticate(deviceId ?? '', secret);
+
+    const occurredAt = new Date(dto.occurredAt);
+    if (!Number.isFinite(occurredAt.getTime()) ||
+        occurredAt.getTime() > Date.now() + 60_000 ||
+        occurredAt.getTime() < Date.now() - 7 * 24 * 60 * 60 * 1000) {
+      throw new BadRequestException(
+        'La fecha de la marcación no es válida o está fuera del intervalo permitido',
+      );
+    }
+
+    const credential = await this.prisma.biometricCredential.findUnique({
+      where: { deviceTemplateId: dto.deviceTemplateId },
+      include: { employee: true },
+    });
+
+    if (!credential || !credential.active || credential.revokedAt ||
+        credential.employee.status !== 'ACTIVE') {
+      throw new BadRequestException(
+        'No existe una credencial biométrica activa para un trabajador activo',
+      );
+    }
+
+    // Fecha laboral de Chile, independiente de la zona horaria del contenedor.
+    const dateParts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Santiago',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(occurredAt);
+    const part = (type: string) => dateParts.find(p => p.type === type)?.value;
+    const localDate = `${part('year')}-${part('month')}-${part('day')}`;
+    const workDate = new Date(`${localDate}T00:00:00.000Z`);
+
+    try {
+      return await this.prisma.$transaction(async tx => {
+        const priorEvent = await tx.deviceEvent.findUnique({
+          where: { eventId: dto.eventId },
+        });
+
+        if (priorEvent) {
+          if (priorEvent.deviceId !== device.id) {
+            throw new ConflictException('El identificador del evento ya fue utilizado');
+          }
+          return {
+            ok: true,
+            duplicate: true,
+            eventId: dto.eventId,
+            result: priorEvent.result,
+          };
+        }
+
+        const assignment = await tx.shiftAssignment.findFirst({
+          where: {
+            employeeId: credential.employeeId,
+            validFrom: { lte: occurredAt },
+            OR: [{ validTo: null }, { validTo: { gte: occurredAt } }],
+            shift: { active: true },
+          },
+          include: { shift: true },
+          orderBy: { validFrom: 'desc' },
+        });
+
+        const session = await tx.workSession.findUnique({
+          where: {
+            employeeId_workDate: {
+              employeeId: credential.employeeId,
+              workDate,
+            },
+          },
+          include: {
+            records: {
+              where: { status: { not: 'VOIDED' } },
+              orderBy: { occurredAt: 'asc' },
+            },
+          },
+        });
+
+        const expectedTypes = assignment?.shift.mode === 'TWO_PUNCH'
+          ? ['ENTRY', 'EXIT'] as const
+          : ['ENTRY', 'BREAK_START', 'BREAK_END', 'EXIT'] as const;
+
+        const existingRecords = session?.records ?? [];
+        const expectedType = expectedTypes[existingRecords.length];
+        const invalidSequence =
+          !assignment ||
+          !expectedType ||
+          existingRecords.some(r => r.status === 'PENDING_REVIEW') ||
+          (existingRecords.length > 0 &&
+            occurredAt.getTime() <= existingRecords[existingRecords.length - 1].occurredAt.getTime());
+
+        const result = invalidSequence ? 'PENDING_REVIEW' : 'ACCEPTED';
+
+        await tx.deviceEvent.create({
+          data: {
+            eventId: dto.eventId,
+            deviceId: device.id,
+            result,
+            details: invalidSequence
+              ? 'Secuencia o turno requiere revisión'
+              : `Tipo calculado: ${expectedType}`,
+          },
+        });
+
+        await tx.biometricDevice.update({
+          where: { id: device.id },
+          data: { lastSeenAt: new Date() },
+        });
+
+        if (invalidSequence) {
+          await tx.auditLog.create({
+            data: {
+              action: 'BIOMETRIC_PUNCH_PENDING_REVIEW',
+              entityType: 'DeviceEvent',
+              entityId: dto.eventId,
+              reason: 'Marcación biométrica requiere revisión: turno ausente, secuencia incompleta o tiempo fuera de orden.',
+              afterJson: {
+                deviceId: device.id,
+                employeeId: credential.employeeId,
+                eventId: dto.eventId,
+                occurredAt: occurredAt.toISOString(),
+                workDate: localDate,
+              },
+            },
+          });
+
+          return {
+            ok: true,
+            eventId: dto.eventId,
+            result: 'PENDING_REVIEW',
+            message: 'Evento registrado; requiere revisión administrativa.',
+          };
+        }
+
+        const activeSession = session ?? await tx.workSession.create({
+          data: {
+            employeeId: credential.employeeId,
+            workDate,
+            shiftId: assignment!.shiftId,
+          },
+          include: { records: true },
+        });
+
+        const record = await tx.attendanceRecord.create({
+          data: {
+            eventId: dto.eventId,
+            employeeId: credential.employeeId,
+            sessionId: activeSession.id,
+            type: expectedType!,
+            method: 'FINGERPRINT',
+            status: 'CONFIRMED',
+            occurredAt,
+            deviceId: device.id,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            action: 'BIOMETRIC_PUNCH_CONFIRMED',
+            entityType: 'AttendanceRecord',
+            entityId: record.id,
+            reason: 'Marcación biométrica recibida desde un dispositivo autenticado.',
+            afterJson: {
+              eventId: dto.eventId,
+              deviceId: device.id,
+              employeeId: credential.employeeId,
+              type: expectedType,
+              occurredAt: occurredAt.toISOString(),
+            },
+          },
+        });
+
+        return {
+          ok: true,
+          eventId: dto.eventId,
+          result: 'ACCEPTED',
+          type: expectedType,
+          attendanceRecordId: record.id,
+        };
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error: unknown) {
+      if (error instanceof ConflictException || error instanceof BadRequestException) {
+        throw error;
+      }
+      if (error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002') {
+        return {
+          ok: true,
+          duplicate: true,
+          eventId: dto.eventId,
+          result: 'DUPLICATE',
+        };
+      }
+      throw new ServiceUnavailableException(
+        'No se pudo procesar la marcación. No repitas el evento con un ID nuevo.',
+      );
+    }
+  }
+
+  @Get('status')
+  async status(
+    @Headers('x-device-id') deviceId: string | undefined,
+    @Headers('x-device-secret') secret: string | undefined,
+  ) {
+    const device = await this.authenticate(deviceId ?? '', secret);
+
+    try {
+      await this.prisma.biometricDevice.update({
+        where: { id: device.id },
+        data: { lastSeenAt: new Date() },
+      });
+    } catch {
+      throw new ServiceUnavailableException('No se pudo actualizar el estado del dispositivo');
+    }
+
+    return { ok: true, deviceId: device.id, status: 'authenticated' };
+  }
+}
+=== apps/api/src/biometric-device.controller.ts.bak-duplicate-fix-20261029-123715 ===
+import {
+  Controller,
+  Get,
+  Post,
+  Headers,
+  Body,
+  BadRequestException,
+  ConflictException,
+  UnauthorizedException,
+  ServiceUnavailableException,
+  UseGuards,
+} from '@nestjs/common';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { PermissionsGuard } from './permissions.guard';
+import { RequirePermissions } from './permissions.decorator';
+import { ApiExcludeController } from '@nestjs/swagger';
+import { createHash, timingSafeEqual } from 'node:crypto';
+import { IsISO8601, IsString, MaxLength, MinLength } from 'class-validator';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from './prisma.service';
+
+class BiometricPunchDto {
+  @IsString()
+  @MinLength(8)
+  @MaxLength(190)
+  eventId!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(190)
+  deviceTemplateId!: string;
+
+  @IsISO8601()
+  occurredAt!: string;
+}
+
+@ApiExcludeController()
+@Controller('device')
+export class BiometricDeviceController {
+  constructor(private readonly prisma: PrismaService) {}
+
+  private verifySecret(received: string | undefined, storedHash: string): boolean {
+    if (!received || received.length < 32 || received.length > 512) {
+      return false;
+    }
+
+    const receivedHash = createHash('sha256').update(received, 'utf8').digest();
+    const expected = Buffer.from(storedHash, 'hex');
+
+    if (expected.length !== receivedHash.length) {
+      return false;
+    }
+
+    return timingSafeEqual(receivedHash, expected);
+  }
+
+  private async authenticate(deviceId: string, secret: string | undefined) {
+    if (!deviceId || deviceId.length > 190 || !secret) {
+      throw new UnauthorizedException('Dispositivo no autenticado');
+    }
+
+    const device = await this.prisma.biometricDevice.findUnique({
+      where: { id: deviceId },
+      select: { id: true, active: true, deviceKeyHash: true },
+    });
+
+    if (!device || !device.active || !this.verifySecret(secret, device.deviceKeyHash)) {
+      throw new UnauthorizedException('Dispositivo no autenticado');
+    }
+
+    return device;
+  }
+
+
+  @Post('punch')
+  async punch(
+    @Headers('x-device-id') deviceId: string | undefined,
+    @Headers('x-device-secret') secret: string | undefined,
+    @Body() dto: BiometricPunchDto,
+  ) {
+    const device = await this.authenticate(deviceId ?? '', secret);
+
+    const occurredAt = new Date(dto.occurredAt);
+    if (!Number.isFinite(occurredAt.getTime()) ||
+        occurredAt.getTime() > Date.now() + 60_000 ||
+        occurredAt.getTime() < Date.now() - 7 * 24 * 60 * 60 * 1000) {
+      throw new BadRequestException(
+        'La fecha de la marcación no es válida o está fuera del intervalo permitido',
+      );
+    }
+
+    const credential = await this.prisma.biometricCredential.findUnique({
+      where: { deviceTemplateId: dto.deviceTemplateId },
+      include: { employee: true },
+    });
+
+    if (!credential || !credential.active || credential.revokedAt ||
+        credential.employee.status !== 'ACTIVE') {
+      throw new BadRequestException(
+        'No existe una credencial biométrica activa para un trabajador activo',
+      );
+    }
+
+    // Fecha laboral de Chile, independiente de la zona horaria del contenedor.
+    const dateParts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Santiago',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(occurredAt);
+    const part = (type: string) => dateParts.find(p => p.type === type)?.value;
+    const localDate = `${part('year')}-${part('month')}-${part('day')}`;
+    const workDate = new Date(`${localDate}T00:00:00.000Z`);
+
+    try {
+      return await this.prisma.$transaction(async tx => {
+        const priorEvent = await tx.deviceEvent.findUnique({
+          where: { eventId: dto.eventId },
+        });
+
+        if (priorEvent) {
+          if (priorEvent.deviceId !== device.id) {
+            throw new ConflictException('El identificador del evento ya fue utilizado');
+          }
+          return {
+            ok: true,
+            duplicate: true,
+            eventId: dto.eventId,
+            result: priorEvent.result,
+          };
+        }
+
+        const assignment = await tx.shiftAssignment.findFirst({
+          where: {
+            employeeId: credential.employeeId,
+            validFrom: { lte: occurredAt },
+            OR: [{ validTo: null }, { validTo: { gte: occurredAt } }],
+            shift: { active: true },
+          },
+          include: { shift: true },
+          orderBy: { validFrom: 'desc' },
+        });
+
+        const session = await tx.workSession.findUnique({
+          where: {
+            employeeId_workDate: {
+              employeeId: credential.employeeId,
+              workDate,
+            },
+          },
+          include: {
+            records: {
+              where: { status: { not: 'VOIDED' } },
+              orderBy: { occurredAt: 'asc' },
+            },
+          },
+        });
+
+        const expectedTypes = assignment?.shift.mode === 'TWO_PUNCH'
+          ? ['ENTRY', 'EXIT'] as const
+          : ['ENTRY', 'BREAK_START', 'BREAK_END', 'EXIT'] as const;
+
+        const existingRecords = session?.records ?? [];
+        const expectedType = expectedTypes[existingRecords.length];
+        const invalidSequence =
+          !assignment ||
+          !expectedType ||
+          existingRecords.some(r => r.status === 'PENDING_REVIEW') ||
+          (existingRecords.length > 0 &&
+            occurredAt.getTime() <= existingRecords[existingRecords.length - 1].occurredAt.getTime());
+
+        const result = invalidSequence ? 'PENDING_REVIEW' : 'ACCEPTED';
+
+        await tx.deviceEvent.create({
+          data: {
+            eventId: dto.eventId,
+            deviceId: device.id,
+            result,
+            details: invalidSequence
+              ? 'Secuencia o turno requiere revisión'
+              : `Tipo calculado: ${expectedType}`,
+          },
+        });
+
+        await tx.biometricDevice.update({
+          where: { id: device.id },
+          data: { lastSeenAt: new Date() },
+        });
+
+        if (invalidSequence) {
+          await tx.auditLog.create({
+            data: {
+              action: 'BIOMETRIC_PUNCH_PENDING_REVIEW',
+              entityType: 'DeviceEvent',
+              entityId: dto.eventId,
+              reason: 'Marcación biométrica requiere revisión: turno ausente, secuencia incompleta o tiempo fuera de orden.',
+              afterJson: {
+                deviceId: device.id,
+                employeeId: credential.employeeId,
+                eventId: dto.eventId,
+                occurredAt: occurredAt.toISOString(),
+                workDate: localDate,
+              },
+            },
+          });
+
+          return {
+            ok: true,
+            eventId: dto.eventId,
+            result: 'PENDING_REVIEW',
+            message: 'Evento registrado; requiere revisión administrativa.',
+          };
+        }
+
+        const activeSession = session ?? await tx.workSession.create({
+          data: {
+            employeeId: credential.employeeId,
+            workDate,
+            shiftId: assignment!.shiftId,
+          },
+          include: { records: true },
+        });
+
+        const record = await tx.attendanceRecord.create({
+          data: {
+            eventId: dto.eventId,
+            employeeId: credential.employeeId,
+            sessionId: activeSession.id,
+            type: expectedType!,
+            method: 'FINGERPRINT',
+            status: 'CONFIRMED',
+            occurredAt,
+            deviceId: device.id,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            action: 'BIOMETRIC_PUNCH_CONFIRMED',
+            entityType: 'AttendanceRecord',
+            entityId: record.id,
+            reason: 'Marcación biométrica recibida desde un dispositivo autenticado.',
+            afterJson: {
+              eventId: dto.eventId,
+              deviceId: device.id,
+              employeeId: credential.employeeId,
+              type: expectedType,
+              occurredAt: occurredAt.toISOString(),
+            },
+          },
+        });
+
+        return {
+          ok: true,
+          eventId: dto.eventId,
+          result: 'ACCEPTED',
+          type: expectedType,
+          attendanceRecordId: record.id,
+        };
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error: unknown) {
+      if (error instanceof ConflictException || error instanceof BadRequestException) {
+        throw error;
+      }
+      if (error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002') {
+        return {
+          ok: true,
+          duplicate: true,
+          eventId: dto.eventId,
+          result: 'DUPLICATE',
+        };
+      }
+      throw new ServiceUnavailableException(
+        'No se pudo procesar la marcación. No repitas el evento con un ID nuevo.',
+      );
+    }
+  }
+
+  @Get('status')
+  async status(
+    @Headers('x-device-id') deviceId: string | undefined,
+    @Headers('x-device-secret') secret: string | undefined,
+  ) {
+    const device = await this.authenticate(deviceId ?? '', secret);
+
+    try {
+      await this.prisma.biometricDevice.update({
+        where: { id: device.id },
+        data: { lastSeenAt: new Date() },
+      });
+    } catch {
+      throw new ServiceUnavailableException('No se pudo actualizar el estado del dispositivo');
+    }
+
+    return { ok: true, deviceId: device.id, status: 'authenticated' };
+  }
+
+  @Get('events')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('attendance.read')
+  async listEvents() {
+    return this.prisma.deviceEvent.findMany({
+      select: {
+        id: true,
+        eventId: true,
+        deviceId: true,
+        receivedAt: true,
+        result: true,
+        details: true,
+      },
+      orderBy: { receivedAt: 'desc' },
+      take: 500,
+    });
+  }
+}
+=== apps/api/src/biometric-device.controller.ts.bak-503 ===
+import {
+  Controller,
+  Get,
+  Post,
+  Headers,
+  Body,
+  BadRequestException,
+  ConflictException,
+  UnauthorizedException,
+  ServiceUnavailableException,
+  UseGuards,
+} from '@nestjs/common';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { PermissionsGuard } from './permissions.guard';
+import { RequirePermissions } from './permissions.decorator';
+import { ApiExcludeController } from '@nestjs/swagger';
+import { createHash, timingSafeEqual } from 'node:crypto';
+import { IsISO8601, IsString, MaxLength, MinLength } from 'class-validator';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from './prisma.service';
+
+class BiometricPunchDto {
+  @IsString()
+  @MinLength(8)
+  @MaxLength(190)
+  eventId!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(190)
+  deviceTemplateId!: string;
+
+  @IsISO8601()
+  occurredAt!: string;
+}
+
+@ApiExcludeController()
+@Controller('device')
+export class BiometricDeviceController {
+  constructor(private readonly prisma: PrismaService) {}
+
+  private verifySecret(received: string | undefined, storedHash: string): boolean {
+    if (!received || received.length < 32 || received.length > 512) {
+      return false;
+    }
+
+    const receivedHash = createHash('sha256').update(received, 'utf8').digest();
+    const expected = Buffer.from(storedHash, 'hex');
+
+    if (expected.length !== receivedHash.length) {
+      return false;
+    }
+
+    return timingSafeEqual(receivedHash, expected);
+  }
+
+  private async authenticate(deviceId: string, secret: string | undefined) {
+    if (!deviceId || deviceId.length > 190 || !secret) {
+      throw new UnauthorizedException('Dispositivo no autenticado');
+    }
+
+    const device = await this.prisma.biometricDevice.findUnique({
+      where: { id: deviceId },
+      select: { id: true, active: true, deviceKeyHash: true },
+    });
+
+    if (!device || !device.active || !this.verifySecret(secret, device.deviceKeyHash)) {
+      throw new UnauthorizedException('Dispositivo no autenticado');
+    }
+
+    return device;
+  }
+
+
+  @Post('punch')
+  async punch(
+    @Headers('x-device-id') deviceId: string | undefined,
+    @Headers('x-device-secret') secret: string | undefined,
+    @Body() dto: BiometricPunchDto,
+  ) {
+    const device = await this.authenticate(deviceId ?? '', secret);
+
+    const occurredAt = new Date(dto.occurredAt);
+    if (!Number.isFinite(occurredAt.getTime()) ||
+        occurredAt.getTime() > Date.now() + 60_000 ||
+        occurredAt.getTime() < Date.now() - 7 * 24 * 60 * 60 * 1000) {
+      throw new BadRequestException(
+        'La fecha de la marcación no es válida o está fuera del intervalo permitido',
+      );
+    }
+
+    const credential = await this.prisma.biometricCredential.findUnique({
+      where: { deviceTemplateId: dto.deviceTemplateId },
+      include: { employee: true },
+    });
+
+    if (!credential || !credential.active || credential.revokedAt ||
+        credential.employee.status !== 'ACTIVE') {
+      throw new BadRequestException(
+        'No existe una credencial biométrica activa para un trabajador activo',
+      );
+    }
+
+    // Fecha laboral de Chile, independiente de la zona horaria del contenedor.
+    const dateParts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Santiago',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(occurredAt);
+    const part = (type: string) => dateParts.find(p => p.type === type)?.value;
+    const localDate = `${part('year')}-${part('month')}-${part('day')}`;
+    const workDate = new Date(`${localDate}T00:00:00.000Z`);
+
+    try {
+      return await this.prisma.$transaction(async tx => {
+        const priorEvent = await tx.deviceEvent.findUnique({
+          where: { eventId: dto.eventId },
+        });
+
+        if (priorEvent) {
+          if (priorEvent.deviceId !== device.id) {
+            throw new ConflictException('El identificador del evento ya fue utilizado');
+          }
+          return {
+            ok: true,
+            duplicate: true,
+            eventId: dto.eventId,
+            result: priorEvent.result,
+          };
+        }
+
+        const assignment = await tx.shiftAssignment.findFirst({
+          where: {
+            employeeId: credential.employeeId,
+            validFrom: { lte: occurredAt },
+            OR: [{ validTo: null }, { validTo: { gte: occurredAt } }],
+            shift: { active: true },
+          },
+          include: { shift: true },
+          orderBy: { validFrom: 'desc' },
+        });
+
+        const session = await tx.workSession.findUnique({
+          where: {
+            employeeId_workDate: {
+              employeeId: credential.employeeId,
+              workDate,
+            },
+          },
+          include: {
+            records: {
+              where: { status: { not: 'VOIDED' } },
+              orderBy: { occurredAt: 'asc' },
+            },
+          },
+        });
+
+        const expectedTypes = assignment?.shift.mode === 'TWO_PUNCH'
+          ? ['ENTRY', 'EXIT'] as const
+          : ['ENTRY', 'BREAK_START', 'BREAK_END', 'EXIT'] as const;
+
+        const existingRecords = session?.records ?? [];
+        const expectedType = expectedTypes[existingRecords.length];
+        const invalidSequence =
+          !assignment ||
+          !expectedType ||
+          existingRecords.some(r => r.status === 'PENDING_REVIEW') ||
+          (existingRecords.length > 0 &&
+            occurredAt.getTime() <= existingRecords[existingRecords.length - 1].occurredAt.getTime());
+
+        const result = invalidSequence ? 'PENDING_REVIEW' : 'ACCEPTED';
+
+        await tx.deviceEvent.create({
+          data: {
+            eventId: dto.eventId,
+            deviceId: device.id,
+            result,
+            details: invalidSequence
+              ? 'Secuencia o turno requiere revisión'
+              : `Tipo calculado: ${expectedType}`,
+          },
+        });
+
+        await tx.biometricDevice.update({
+          where: { id: device.id },
+          data: { lastSeenAt: new Date() },
+        });
+
+        if (invalidSequence) {
+          await tx.auditLog.create({
+            data: {
+              action: 'BIOMETRIC_PUNCH_PENDING_REVIEW',
+              entityType: 'DeviceEvent',
+              entityId: dto.eventId,
+              reason: 'Marcación biométrica requiere revisión: turno ausente, secuencia incompleta o tiempo fuera de orden.',
+              afterJson: {
+                deviceId: device.id,
+                employeeId: credential.employeeId,
+                eventId: dto.eventId,
+                occurredAt: occurredAt.toISOString(),
+                workDate: localDate,
+              },
+            },
+          });
+
+          return {
+            ok: true,
+            eventId: dto.eventId,
+            result: 'PENDING_REVIEW',
+            message: 'Evento registrado; requiere revisión administrativa.',
+          };
+        }
+
+        const activeSession = session ?? await tx.workSession.create({
+          data: {
+            employeeId: credential.employeeId,
+            workDate,
+            shiftId: assignment!.shiftId,
+          },
+          include: { records: true },
+        });
+
+        const record = await tx.attendanceRecord.create({
+          data: {
+            eventId: dto.eventId,
+            employeeId: credential.employeeId,
+            sessionId: activeSession.id,
+            type: expectedType!,
+            method: 'FINGERPRINT',
+            status: 'CONFIRMED',
+            occurredAt,
+            deviceId: device.id,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            action: 'BIOMETRIC_PUNCH_CONFIRMED',
+            entityType: 'AttendanceRecord',
+            entityId: record.id,
+            reason: 'Marcación biométrica recibida desde un dispositivo autenticado.',
+            afterJson: {
+              eventId: dto.eventId,
+              deviceId: device.id,
+              employeeId: credential.employeeId,
+              type: expectedType,
+              occurredAt: occurredAt.toISOString(),
+            },
+          },
+        });
+
+        return {
+          ok: true,
+          eventId: dto.eventId,
+          result: 'ACCEPTED',
+          type: expectedType,
+          attendanceRecordId: record.id,
+        };
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error: unknown) {
+      if (error instanceof ConflictException || error instanceof BadRequestException) {
+        throw error;
+      }
+      if (error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002') {
+        const originalEvent = await this.prisma.deviceEvent.findUnique({
+          where: { eventId: dto.eventId },
+          select: { deviceId: true, result: true },
+        });
+
+        if (originalEvent && originalEvent.deviceId === device.id) {
+          return {
+            ok: true,
+            duplicate: true,
+            eventId: dto.eventId,
+            result: originalEvent.result,
+          };
+        }
+
+        return {
+          ok: true,
+          duplicate: true,
+          eventId: dto.eventId,
+          result: 'DUPLICATE',
+        };
+      }
+      throw new ServiceUnavailableException(
+        'No se pudo procesar la marcación. No repitas el evento con un ID nuevo.',
+      );
+    }
+  }
+
+  @Get('status')
+  async status(
+    @Headers('x-device-id') deviceId: string | undefined,
+    @Headers('x-device-secret') secret: string | undefined,
+  ) {
+    const device = await this.authenticate(deviceId ?? '', secret);
+
+    try {
+      await this.prisma.biometricDevice.update({
+        where: { id: device.id },
+        data: { lastSeenAt: new Date() },
+      });
+    } catch {
+      throw new ServiceUnavailableException('No se pudo actualizar el estado del dispositivo');
+    }
+
+    return { ok: true, deviceId: device.id, status: 'authenticated' };
+  }
+
+  @Get('events')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('attendance.read')
+  async listEvents() {
+    return this.prisma.deviceEvent.findMany({
+      select: {
+        id: true,
+        eventId: true,
+        deviceId: true,
+        receivedAt: true,
+        result: true,
+        details: true,
+      },
+      orderBy: { receivedAt: 'desc' },
+      take: 500,
+    });
+  }
+}
+=== apps/api/src/biometric-device.controller.ts.backup-20261029 ===
+import {
+  Controller,
+  Get,
+  Post,
+  Headers,
+  Body,
+  BadRequestException,
+  ConflictException,
+  UnauthorizedException,
+  ServiceUnavailableException,
+  UseGuards,
+} from '@nestjs/common';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { PermissionsGuard } from './permissions.guard';
+import { RequirePermissions } from './permissions.decorator';
+import { ApiExcludeController } from '@nestjs/swagger';
+import { createHash, timingSafeEqual } from 'node:crypto';
+import { IsISO8601, IsString, MaxLength, MinLength } from 'class-validator';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from './prisma.service';
+
+class BiometricPunchDto {
+  @IsString()
+  @MinLength(8)
+  @MaxLength(190)
+  eventId!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(190)
+  deviceTemplateId!: string;
+
+  @IsISO8601()
+  occurredAt!: string;
+}
+
+@ApiExcludeController()
+@Controller('device')
+export class BiometricDeviceController {
+  constructor(private readonly prisma: PrismaService) {}
+
+  private verifySecret(received: string | undefined, storedHash: string): boolean {
+    if (!received || received.length < 32 || received.length > 512) {
+      return false;
+    }
+
+    const receivedHash = createHash('sha256').update(received, 'utf8').digest();
+    const expected = Buffer.from(storedHash, 'hex');
+
+    if (expected.length !== receivedHash.length) {
+      return false;
+    }
+
+    return timingSafeEqual(receivedHash, expected);
+  }
+
+  private async authenticate(deviceId: string, secret: string | undefined) {
+    if (!deviceId || deviceId.length > 190 || !secret) {
+      throw new UnauthorizedException('Dispositivo no autenticado');
+    }
+
+    const device = await this.prisma.biometricDevice.findUnique({
+      where: { id: deviceId },
+      select: { id: true, active: true, deviceKeyHash: true },
+    });
+
+    if (!device || !device.active || !this.verifySecret(secret, device.deviceKeyHash)) {
+      throw new UnauthorizedException('Dispositivo no autenticado');
+    }
+
+    return device;
+  }
+
+
+  @Post('punch')
+  async punch(
+    @Headers('x-device-id') deviceId: string | undefined,
+    @Headers('x-device-secret') secret: string | undefined,
+    @Body() dto: BiometricPunchDto,
+  ) {
+    const device = await this.authenticate(deviceId ?? '', secret);
+
+    const occurredAt = new Date(dto.occurredAt);
+    if (!Number.isFinite(occurredAt.getTime()) ||
+        occurredAt.getTime() > Date.now() + 60_000 ||
+        occurredAt.getTime() < Date.now() - 7 * 24 * 60 * 60 * 1000) {
+      throw new BadRequestException(
+        'La fecha de la marcación no es válida o está fuera del intervalo permitido',
+      );
+    }
+
+    const credential = await this.prisma.biometricCredential.findUnique({
+      where: { deviceTemplateId: dto.deviceTemplateId },
+      include: { employee: true },
+    });
+
+    if (!credential || !credential.active || credential.revokedAt ||
+        credential.employee.status !== 'ACTIVE') {
+      throw new BadRequestException(
+        'No existe una credencial biométrica activa para un trabajador activo',
+      );
+    }
+
+    // Fecha laboral de Chile, independiente de la zona horaria del contenedor.
+    const dateParts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Santiago',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(occurredAt);
+    const part = (type: string) => dateParts.find(p => p.type === type)?.value;
+    const localDate = `${part('year')}-${part('month')}-${part('day')}`;
+    const workDate = new Date(`${localDate}T00:00:00.000Z`);
+
+    try {
+      return await this.prisma.$transaction(async tx => {
+        const priorEvent = await tx.deviceEvent.findUnique({
+          where: { eventId: dto.eventId },
+        });
+
+        if (priorEvent) {
+          if (priorEvent.deviceId !== device.id) {
+            throw new ConflictException('El identificador del evento ya fue utilizado');
+          }
+          return {
+            ok: true,
+            duplicate: true,
+            eventId: dto.eventId,
+            result: priorEvent.result,
+          };
+        }
+
+        const assignment = await tx.shiftAssignment.findFirst({
+          where: {
+            employeeId: credential.employeeId,
+            validFrom: { lte: occurredAt },
+            OR: [{ validTo: null }, { validTo: { gte: occurredAt } }],
+            shift: { active: true },
+          },
+          include: { shift: true },
+          orderBy: { validFrom: 'desc' },
+        });
+
+        const session = await tx.workSession.findUnique({
+          where: {
+            employeeId_workDate: {
+              employeeId: credential.employeeId,
+              workDate,
+            },
+          },
+          include: {
+            records: {
+              where: { status: { not: 'VOIDED' } },
+              orderBy: { occurredAt: 'asc' },
+            },
+          },
+        });
+
+        const expectedTypes = assignment?.shift.mode === 'TWO_PUNCH'
+          ? ['ENTRY', 'EXIT'] as const
+          : ['ENTRY', 'BREAK_START', 'BREAK_END', 'EXIT'] as const;
+
+        const existingRecords = session?.records ?? [];
+        const expectedType = expectedTypes[existingRecords.length];
+        const invalidSequence =
+          !assignment ||
+          !expectedType ||
+          existingRecords.some(r => r.status === 'PENDING_REVIEW') ||
+          (existingRecords.length > 0 &&
+            occurredAt.getTime() <= existingRecords[existingRecords.length - 1].occurredAt.getTime());
+
+        const result = invalidSequence ? 'PENDING_REVIEW' : 'ACCEPTED';
+
+        await tx.deviceEvent.create({
+          data: {
+            eventId: dto.eventId,
+            deviceId: device.id,
+            result,
+            details: invalidSequence
+              ? 'Secuencia o turno requiere revisión'
+              : `Tipo calculado: ${expectedType}`,
+          },
+        });
+
+        await tx.biometricDevice.update({
+          where: { id: device.id },
+          data: { lastSeenAt: new Date() },
+        });
+
+        if (invalidSequence) {
+          await tx.auditLog.create({
+            data: {
+              action: 'BIOMETRIC_PUNCH_PENDING_REVIEW',
+              entityType: 'DeviceEvent',
+              entityId: dto.eventId,
+              reason: 'Marcación biométrica requiere revisión: turno ausente, secuencia incompleta o tiempo fuera de orden.',
+              afterJson: {
+                deviceId: device.id,
+                employeeId: credential.employeeId,
+                eventId: dto.eventId,
+                occurredAt: occurredAt.toISOString(),
+                workDate: localDate,
+              },
+            },
+          });
+
+          return {
+            ok: true,
+            eventId: dto.eventId,
+            result: 'PENDING_REVIEW',
+            message: 'Evento registrado; requiere revisión administrativa.',
+          };
+        }
+
+        const activeSession = session ?? await tx.workSession.create({
+          data: {
+            employeeId: credential.employeeId,
+            workDate,
+            shiftId: assignment!.shiftId,
+          },
+          include: { records: true },
+        });
+
+        const record = await tx.attendanceRecord.create({
+          data: {
+            eventId: dto.eventId,
+            employeeId: credential.employeeId,
+            sessionId: activeSession.id,
+            type: expectedType!,
+            method: 'FINGERPRINT',
+            status: 'CONFIRMED',
+            occurredAt,
+            deviceId: device.id,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            action: 'BIOMETRIC_PUNCH_CONFIRMED',
+            entityType: 'AttendanceRecord',
+            entityId: record.id,
+            reason: 'Marcación biométrica recibida desde un dispositivo autenticado.',
+            afterJson: {
+              eventId: dto.eventId,
+              deviceId: device.id,
+              employeeId: credential.employeeId,
+              type: expectedType,
+              occurredAt: occurredAt.toISOString(),
+            },
+          },
+        });
+
+        return {
+          ok: true,
+          eventId: dto.eventId,
+          result: 'ACCEPTED',
+          type: expectedType,
+          attendanceRecordId: record.id,
+        };
+      }, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 10000,
+        timeout: 15000,
+      });
+    } catch (error: unknown) {
+      if (error instanceof ConflictException || error instanceof BadRequestException) {
+        throw error;
+      }
+      if (error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002') {
+        const originalEvent = await this.prisma.deviceEvent.findUnique({
+          where: { eventId: dto.eventId },
+          select: { deviceId: true, result: true },
+        });
+
+        if (originalEvent && originalEvent.deviceId === device.id) {
+          return {
+            ok: true,
+            duplicate: true,
+            eventId: dto.eventId,
+            result: originalEvent.result,
+          };
+        }
+
+        return {
+          ok: true,
+          duplicate: true,
+          eventId: dto.eventId,
+          result: 'DUPLICATE',
+        };
+      }
+      throw new ServiceUnavailableException(
+        'No se pudo procesar la marcación. No repitas el evento con un ID nuevo.',
+      );
+    }
+  }
+
+  @Get('status')
+  async status(
+    @Headers('x-device-id') deviceId: string | undefined,
+    @Headers('x-device-secret') secret: string | undefined,
+  ) {
+    const device = await this.authenticate(deviceId ?? '', secret);
+
+    try {
+      await this.prisma.biometricDevice.update({
+        where: { id: device.id },
+        data: { lastSeenAt: new Date() },
+      });
+    } catch {
+      throw new ServiceUnavailableException('No se pudo actualizar el estado del dispositivo');
+    }
+
+    return { ok: true, deviceId: device.id, status: 'authenticated' };
+  }
+
+  @Get('events')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('attendance.read')
+  async listEvents() {
+    return this.prisma.deviceEvent.findMany({
+      select: {
+        id: true,
+        eventId: true,
+        deviceId: true,
+        receivedAt: true,
+        result: true,
+        details: true,
+      },
+      orderBy: { receivedAt: 'desc' },
+      take: 500,
+    });
+  }
+}
+===== CONTROLADOR DE ASISTENCIA =====
+=== apps/api/src/attendance.controller.ts ===
+import {
+  Body,
+  Controller,
+  Get,
+  Patch,
+  Param,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+  BadRequestException,
+  NotFoundException
+} from '@nestjs/common';
+
+import { ApiTags } from '@nestjs/swagger';
+
+import {
+  IsEnum,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  MinLength,
+  IsIn
+} from 'class-validator';
+
+import { PrismaService } from './prisma.service';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { PermissionsGuard } from './permissions.guard';
+import { RequirePermissions } from './permissions.decorator';
+
+
+class ReviewAttendanceDto {
+  @IsIn(['CONFIRMED', 'VOIDED'])
+  status!: 'CONFIRMED' | 'VOIDED';
+
+  @IsString()
+  @MinLength(8)
+  reason!: string;
+
+  @IsOptional()
+  @IsIn(['ENTRY', 'BREAK_START', 'BREAK_END', 'EXIT'])
+  type?: 'ENTRY' | 'BREAK_START' | 'BREAK_END' | 'EXIT';
+}
+
+
+class ManualAttendanceDto {
+  @IsString()
+  employeeId!: string;
+
+  @IsIn(['ENTRY', 'BREAK_START', 'BREAK_END', 'EXIT'])
+  type!: 'ENTRY' | 'BREAK_START' | 'BREAK_END' | 'EXIT';
+
+  @IsISO8601()
+  occurredAt!: string;
+
+  @IsString()
+  @MinLength(8)
+  reason!: string;
+}
+
+
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@ApiTags('attendance')
+@Controller('attendance')
+export class AttendanceController {
+  constructor(private prisma: PrismaService) {}
+
+
+  @Get()
+  @RequirePermissions('attendance.read')
+  async list(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('employeeId') employeeId?: string
+  ) {
+    const where: any = {};
+
+    if (employeeId) {
+      where.employeeId = employeeId;
+    }
+
+    if (from || to) {
+      where.occurredAt = {
+        ...(from ? { gte: new Date(from) } : {}),
+        ...(to ? { lte: new Date(to) } : {})
+      };
+    }
+
+    const records = await this.prisma.attendanceRecord.findMany({
+      where,
+      include: {
+        employee: true
+      },
+      orderBy: {
+        occurredAt: 'desc'
+      },
+      take: 1000
+    });
+
+    if (!records.length) return [];
+
+    const auditLogs = await this.prisma.auditLog.findMany({
+      where: {
+        entityType: 'AttendanceRecord',
+        entityId: {
+          in: records.map(record => record.id)
+        },
+        action: {
+          in: [
+            'ATTENDANCE_MANUAL_CREATED',
+            'ATTENDANCE_REVIEW_CONFIRMED',
+            'ATTENDANCE_REVIEW_VOIDED',
+            'BIOMETRIC_PUNCH_PENDING_REVIEW'
+          ]
+        }
+      },
+      select: {
+        entityId: true,
+        action: true,
+        reason: true,
+        createdAt: true,
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'asc'
+      }
+    });
+
+    const creatorIds = [...new Set(
+      records
+        .map(record => record.createdByUserId)
+        .filter((id): id is string => Boolean(id))
+    )];
+
+    const creators = creatorIds.length
+      ? await this.prisma.user.findMany({
+          where: {
+            id: {
+              in: creatorIds
+            }
+          },
+          select: {
+            id: true,
+            fullName: true,
+            email: true
+          }
+        })
+      : [];
+
+    const creatorsById = new Map(
+      creators.map(user => [user.id, user])
+    );
+
+    const logsByRecord = new Map<string, typeof auditLogs>();
+
+    for (const log of auditLogs) {
+      if (!log.entityId) continue;
+
+      const current = logsByRecord.get(log.entityId) ?? [];
+
+      current.push(log);
+
+      logsByRecord.set(log.entityId, current);
+    }
+
+    return records.map(record => ({
+      ...record,
+
+      creator: record.createdByUserId
+        ? creatorsById.get(record.createdByUserId) ?? null
+        : null,
+
+      auditTrail: (logsByRecord.get(record.id) ?? []).map(log => ({
+        action: log.action,
+        reason: log.reason,
+        createdAt: log.createdAt,
+        user: log.user
+      }))
+    }));
+  }
+
+
+  @Patch(':id/review')
+  @RequirePermissions('attendance.review')
+  async review(
+    @Param('id') id: string,
+    @Body() dto: ReviewAttendanceDto,
+    @Req() req: any
+  ) {
+    const reason = dto.reason.trim();
+
+    if (reason.length < 8) {
+      throw new BadRequestException(
+        'El motivo debe tener al menos 8 caracteres'
+      );
+    }
+
+    return this.prisma.$transaction(async tx => {
+
+      const before = await tx.attendanceRecord.findUnique({
+        where: { id },
+        include: {
+          employee: true
+        }
+      });
+
+      if (!before) {
+        throw new NotFoundException('Marcación no encontrada');
+      }
+
+      if (before.status !== 'PENDING_REVIEW') {
+        throw new BadRequestException(
+          'Solo se pueden revisar marcaciones pendientes de revisión'
+        );
+      }
+
+      const newType = dto.type ?? before.type;
+
+      const changed = await tx.attendanceRecord.updateMany({
+        where: {
+          id,
+          status: 'PENDING_REVIEW'
+        },
+        data: {
+          status: dto.status,
+          type: newType
+        }
+      });
+
+      if (changed.count !== 1) {
+        throw new BadRequestException(
+          'La marcación cambió mientras se revisaba. Actualiza la lista'
+        );
+      }
+
+      // Actualiza el evento técnico asociado a la marcación biométrica.
+      // No modifica ni elimina el evento original.
+      await tx.deviceEvent.updateMany({
+        where: {
+          eventId: before.eventId
+        },
+        data: {
+          result: dto.status === 'CONFIRMED'
+            ? 'ACCEPTED'
+            : 'VOIDED'
+        }
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: req.user.sub,
+
+          action: dto.status === 'CONFIRMED'
+            ? 'ATTENDANCE_REVIEW_CONFIRMED'
+            : 'ATTENDANCE_REVIEW_VOIDED',
+
+          entityType: 'AttendanceRecord',
+          entityId: id,
+          reason,
+
+          beforeJson: {
+            status: before.status,
+            type: before.type,
+            occurredAt: before.occurredAt.toISOString()
+          },
+
+          afterJson: {
+            status: dto.status,
+            type: newType,
+            reason
+          }
+        }
+      });
+
+      return tx.attendanceRecord.findUnique({
+        where: { id },
+        include: {
+          employee: true
+        }
+      });
+    });
+  }
+
+
+  @Post('manual')
+  @RequirePermissions('attendance.manual')
+  async manual(
+    @Body() dto: ManualAttendanceDto,
+    @Req() req: any
+  ) {
+    const adminUserId: string = req.user.sub;
+
+    if (!dto.reason.trim()) {
+      throw new BadRequestException(
+        'El motivo es obligatorio'
+      );
+    }
+
+    const employee = await this.prisma.employee.findUnique({
+      where: {
+        id: dto.employeeId
+      }
+    });
+
+    if (!employee || employee.status !== 'ACTIVE') {
+      throw new BadRequestException(
+        'Trabajador no encontrado o inactivo'
+      );
+    }
+
+    const id = `manual_${crypto.randomUUID()}`;
+
+    return this.prisma.$transaction(async tx => {
+
+      const record = await tx.attendanceRecord.create({
+        data: {
+          eventId: id,
+          employeeId: dto.employeeId,
+          type: dto.type,
+          method: 'ADMIN_MANUAL',
+          status: 'CONFIRMED',
+          occurredAt: new Date(dto.occurredAt),
+          manualReason: dto.reason.trim(),
+          createdByUserId: adminUserId
+        }
+      });
+
+      await tx.manualAttendanceChange.create({
+        data: {
+          attendanceRecordId: record.id,
+          action: 'CREATED',
+          reason: dto.reason.trim(),
+          adminUserId,
+
+          afterJson: {
+            type: dto.type,
+            occurredAt: dto.occurredAt,
+            method: 'ADMIN_MANUAL'
+          }
+        }
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: adminUserId,
+          action: 'ATTENDANCE_MANUAL_CREATED',
+          entityType: 'AttendanceRecord',
+          entityId: record.id,
+          reason: dto.reason.trim(),
+
+          afterJson: {
+            type: dto.type,
+            occurredAt: dto.occurredAt
+          }
+        }
+      });
+
+      return record;
+    });
+  }
+}
+=== apps/api/src/attendance.controller.ts.backup-20261028-133644 ===
+import { Body, Controller, Get, Post, Query, Req, UseGuards, BadRequestException } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import { IsEnum, IsISO8601, IsOptional, IsString, MinLength } from 'class-validator';
+import { PrismaService } from './prisma.service';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { PermissionsGuard } from './permissions.guard';
+import { RequirePermissions } from './permissions.decorator';
+
+class ManualAttendanceDto {
+  @IsString() employeeId!: string;
+  @IsEnum(['ENTRY', 'BREAK_START', 'BREAK_END', 'EXIT']) type!: 'ENTRY'|'BREAK_START'|'BREAK_END'|'EXIT';
+  @IsISO8601() occurredAt!: string;
+  @IsString() @MinLength(8) reason!: string;
+}
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@ApiTags('attendance')
+@Controller('attendance')
+export class AttendanceController {
+  constructor(private prisma: PrismaService) {}
+  @Get()
+  @RequirePermissions('attendance.read')
+  list(@Query('from') from?: string, @Query('to') to?: string, @Query('employeeId') employeeId?: string) {
+    const where: any = {};
+    if (employeeId) where.employeeId = employeeId;
+    if (from || to) where.occurredAt = { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) };
+    return this.prisma.attendanceRecord.findMany({ where, include: { employee: true }, orderBy: { occurredAt: 'desc' }, take: 1000 });
+  }
+  @Post('manual')
+  @RequirePermissions('attendance.manual')
+  async manual(@Body() dto: ManualAttendanceDto, @Req() req: any) {
+    const adminUserId: string = req.user.sub;
+    if (!dto.reason.trim()) throw new BadRequestException('El motivo es obligatorio');
+    const employee = await this.prisma.employee.findUnique({ where: { id: dto.employeeId } });
+    if (!employee || employee.status !== 'ACTIVE') throw new BadRequestException('Trabajador no encontrado o inactivo');
+    const id = `manual_${crypto.randomUUID()}`;
+    return this.prisma.$transaction(async tx => {
+      const record = await tx.attendanceRecord.create({ data: {
+        eventId: id, employeeId: dto.employeeId, type: dto.type,
+        method: 'ADMIN_MANUAL', status: 'CONFIRMED', occurredAt: new Date(dto.occurredAt),
+        manualReason: dto.reason.trim(), createdByUserId: adminUserId
+      }});
+      await tx.manualAttendanceChange.create({ data: {
+        attendanceRecordId: record.id, action: 'CREATED', reason: dto.reason.trim(), adminUserId,
+        afterJson: { type: dto.type, occurredAt: dto.occurredAt, method: 'ADMIN_MANUAL' }
+      }});
+      await tx.auditLog.create({ data: {
+        userId: adminUserId, action: 'ATTENDANCE_MANUAL_CREATED', entityType: 'AttendanceRecord',
+        entityId: record.id, reason: dto.reason.trim(), afterJson: { type: dto.type, occurredAt: dto.occurredAt }
+      }});
+      return record;
+    });
+  }
+}
+=== apps/api/src/attendance.controller.ts.bak-trazabilidad ===
+import { Body, Controller, Get, Patch, Param, Post, Query, Req, UseGuards, BadRequestException, NotFoundException } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import { IsEnum, IsISO8601, IsOptional, IsString, MinLength, IsIn } from 'class-validator';
+import { PrismaService } from './prisma.service';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { PermissionsGuard } from './permissions.guard';
+import { RequirePermissions } from './permissions.decorator';
+
+
+class ReviewAttendanceDto {
+  @IsIn(['CONFIRMED', 'VOIDED'])
+  status!: 'CONFIRMED' | 'VOIDED';
+
+  @IsString()
+  @MinLength(8)
+  reason!: string;
+}
+
+class ManualAttendanceDto {
+  @IsString() employeeId!: string;
+  @IsEnum(['ENTRY', 'BREAK_START', 'BREAK_END', 'EXIT']) type!: 'ENTRY'|'BREAK_START'|'BREAK_END'|'EXIT';
+  @IsISO8601() occurredAt!: string;
+  @IsString() @MinLength(8) reason!: string;
+}
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@ApiTags('attendance')
+@Controller('attendance')
+export class AttendanceController {
+  constructor(private prisma: PrismaService) {}
+  @Get()
+  @RequirePermissions('attendance.read')
+  list(@Query('from') from?: string, @Query('to') to?: string, @Query('employeeId') employeeId?: string) {
+    const where: any = {};
+    if (employeeId) where.employeeId = employeeId;
+    if (from || to) where.occurredAt = { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) };
+    return this.prisma.attendanceRecord.findMany({ where, include: { employee: true }, orderBy: { occurredAt: 'desc' }, take: 1000 });
+  }
+
+  @Patch(':id/review')
+  @RequirePermissions('attendance.review')
+  async review(
+    @Param('id') id: string,
+    @Body() dto: ReviewAttendanceDto,
+    @Req() req: any
+  ) {
+    const reason = dto.reason.trim();
+    if (reason.length < 8) {
+      throw new BadRequestException('El motivo debe tener al menos 8 caracteres');
+    }
+
+    return this.prisma.$transaction(async tx => {
+      const before = await tx.attendanceRecord.findUnique({
+        where: { id },
+        include: { employee: true }
+      });
+
+      if (!before) {
+        throw new NotFoundException('Marcación no encontrada');
+      }
+      if (before.status !== 'PENDING_REVIEW') {
+        throw new BadRequestException(
+          'Solo se pueden revisar marcaciones pendientes de revisión'
+        );
+      }
+
+      const changed = await tx.attendanceRecord.updateMany({
+        where: { id, status: 'PENDING_REVIEW' },
+        data: { status: dto.status }
+      });
+
+      if (changed.count !== 1) {
+        throw new BadRequestException(
+          'La marcación cambió mientras se revisaba. Actualiza la lista'
+        );
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId: req.user.sub,
+          action: dto.status === 'CONFIRMED'
+            ? 'ATTENDANCE_REVIEW_CONFIRMED'
+            : 'ATTENDANCE_REVIEW_VOIDED',
+          entityType: 'AttendanceRecord',
+          entityId: id,
+          reason,
+          beforeJson: {
+            status: before.status,
+            type: before.type,
+            occurredAt: before.occurredAt.toISOString()
+          },
+          afterJson: {
+            status: dto.status,
+            reason
+          }
+        }
+      });
+
+      return tx.attendanceRecord.findUnique({
+        where: { id },
+        include: { employee: true }
+      });
+    });
+  }
+
+  @Post('manual')
+  @RequirePermissions('attendance.manual')
+  async manual(@Body() dto: ManualAttendanceDto, @Req() req: any) {
+    const adminUserId: string = req.user.sub;
+    if (!dto.reason.trim()) throw new BadRequestException('El motivo es obligatorio');
+    const employee = await this.prisma.employee.findUnique({ where: { id: dto.employeeId } });
+    if (!employee || employee.status !== 'ACTIVE') throw new BadRequestException('Trabajador no encontrado o inactivo');
+    const id = `manual_${crypto.randomUUID()}`;
+    return this.prisma.$transaction(async tx => {
+      const record = await tx.attendanceRecord.create({ data: {
+        eventId: id, employeeId: dto.employeeId, type: dto.type,
+        method: 'ADMIN_MANUAL', status: 'CONFIRMED', occurredAt: new Date(dto.occurredAt),
+        manualReason: dto.reason.trim(), createdByUserId: adminUserId
+      }});
+      await tx.manualAttendanceChange.create({ data: {
+        attendanceRecordId: record.id, action: 'CREATED', reason: dto.reason.trim(), adminUserId,
+        afterJson: { type: dto.type, occurredAt: dto.occurredAt, method: 'ADMIN_MANUAL' }
+      }});
+      await tx.auditLog.create({ data: {
+        userId: adminUserId, action: 'ATTENDANCE_MANUAL_CREATED', entityType: 'AttendanceRecord',
+        entityId: record.id, reason: dto.reason.trim(), afterJson: { type: dto.type, occurredAt: dto.occurredAt }
+      }});
+      return record;
+    });
+  }
+}
+=== apps/api/src/attendance.controller.ts.bak-trazabilidad-20261028-141237 ===
+import { Body, Controller, Get, Patch, Param, Post, Query, Req, UseGuards, BadRequestException, NotFoundException } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import { IsEnum, IsISO8601, IsOptional, IsString, MinLength, IsIn } from 'class-validator';
+import { PrismaService } from './prisma.service';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { PermissionsGuard } from './permissions.guard';
+import { RequirePermissions } from './permissions.decorator';
+
+
+class ReviewAttendanceDto {
+  @IsIn(['CONFIRMED', 'VOIDED'])
+  status!: 'CONFIRMED' | 'VOIDED';
+
+  @IsString()
+  @MinLength(8)
+  reason!: string;
+}
+
+class ManualAttendanceDto {
+  @IsString() employeeId!: string;
+  @IsEnum(['ENTRY', 'BREAK_START', 'BREAK_END', 'EXIT']) type!: 'ENTRY'|'BREAK_START'|'BREAK_END'|'EXIT';
+  @IsISO8601() occurredAt!: string;
+  @IsString() @MinLength(8) reason!: string;
+}
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@ApiTags('attendance')
+@Controller('attendance')
+export class AttendanceController {
+  constructor(private prisma: PrismaService) {}
+  @Get()
+  @RequirePermissions('attendance.read')
+  async list(@Query('from') from?: string, @Query('to') to?: string, @Query('employeeId') employeeId?: string) {
+    const where: any = {};
+    if (employeeId) where.employeeId = employeeId;
+    if (from || to) where.occurredAt = { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) };
+
+    const records = await this.prisma.attendanceRecord.findMany({
+      where,
+      include: { employee: true },
+      orderBy: { occurredAt: 'desc' },
+      take: 1000
+    });
+
+    if (!records.length) return [];
+
+    const auditLogs = await this.prisma.auditLog.findMany({
+      where: {
+        entityType: 'AttendanceRecord',
+        entityId: { in: records.map(record => record.id) },
+        action: {
+          in: [
+            'ATTENDANCE_MANUAL_CREATED',
+            'ATTENDANCE_REVIEW_CONFIRMED',
+            'ATTENDANCE_REVIEW_VOIDED'
+          ]
+        }
+      },
+      select: {
+        entityId: true,
+        action: true,
+        reason: true,
+        createdAt: true,
+        user: { select: { id: true, fullName: true, email: true } }
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    const logsByRecord = new Map<string, typeof auditLogs>();
+    for (const log of auditLogs) {
+      if (!log.entityId) continue;
+      const current = logsByRecord.get(log.entityId) ?? [];
+      current.push(log);
+      logsByRecord.set(log.entityId, current);
+    }
+
+    return records.map(record => ({
+      ...record,
+      auditTrail: (logsByRecord.get(record.id) ?? []).map(log => ({
+        action: log.action,
+        reason: log.reason,
+        createdAt: log.createdAt,
+        user: log.user
+      }))
+    }));
+  }
+
+  @Patch(':id/review')
+  @RequirePermissions('attendance.review')
+  async review(
+    @Param('id') id: string,
+    @Body() dto: ReviewAttendanceDto,
+    @Req() req: any
+  ) {
+    const reason = dto.reason.trim();
+    if (reason.length < 8) {
+      throw new BadRequestException('El motivo debe tener al menos 8 caracteres');
+    }
+
+    return this.prisma.$transaction(async tx => {
+      const before = await tx.attendanceRecord.findUnique({
+        where: { id },
+        include: { employee: true }
+      });
+
+      if (!before) {
+        throw new NotFoundException('Marcación no encontrada');
+      }
+      if (before.status !== 'PENDING_REVIEW') {
+        throw new BadRequestException(
+          'Solo se pueden revisar marcaciones pendientes de revisión'
+        );
+      }
+
+      const changed = await tx.attendanceRecord.updateMany({
+        where: { id, status: 'PENDING_REVIEW' },
+        data: { status: dto.status }
+      });
+
+      if (changed.count !== 1) {
+        throw new BadRequestException(
+          'La marcación cambió mientras se revisaba. Actualiza la lista'
+        );
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId: req.user.sub,
+          action: dto.status === 'CONFIRMED'
+            ? 'ATTENDANCE_REVIEW_CONFIRMED'
+            : 'ATTENDANCE_REVIEW_VOIDED',
+          entityType: 'AttendanceRecord',
+          entityId: id,
+          reason,
+          beforeJson: {
+            status: before.status,
+            type: before.type,
+            occurredAt: before.occurredAt.toISOString()
+          },
+          afterJson: {
+            status: dto.status,
+            reason
+          }
+        }
+      });
+
+      return tx.attendanceRecord.findUnique({
+        where: { id },
+        include: { employee: true }
+      });
+    });
+  }
+
+  @Post('manual')
+  @RequirePermissions('attendance.manual')
+  async manual(@Body() dto: ManualAttendanceDto, @Req() req: any) {
+    const adminUserId: string = req.user.sub;
+    if (!dto.reason.trim()) throw new BadRequestException('El motivo es obligatorio');
+    const employee = await this.prisma.employee.findUnique({ where: { id: dto.employeeId } });
+    if (!employee || employee.status !== 'ACTIVE') throw new BadRequestException('Trabajador no encontrado o inactivo');
+    const id = `manual_${crypto.randomUUID()}`;
+    return this.prisma.$transaction(async tx => {
+      const record = await tx.attendanceRecord.create({ data: {
+        eventId: id, employeeId: dto.employeeId, type: dto.type,
+        method: 'ADMIN_MANUAL', status: 'CONFIRMED', occurredAt: new Date(dto.occurredAt),
+        manualReason: dto.reason.trim(), createdByUserId: adminUserId
+      }});
+      await tx.manualAttendanceChange.create({ data: {
+        attendanceRecordId: record.id, action: 'CREATED', reason: dto.reason.trim(), adminUserId,
+        afterJson: { type: dto.type, occurredAt: dto.occurredAt, method: 'ADMIN_MANUAL' }
+      }});
+      await tx.auditLog.create({ data: {
+        userId: adminUserId, action: 'ATTENDANCE_MANUAL_CREATED', entityType: 'AttendanceRecord',
+        entityId: record.id, reason: dto.reason.trim(), afterJson: { type: dto.type, occurredAt: dto.occurredAt }
+      }});
+      return record;
+    });
+  }
+}
+=== apps/api/src/attendance.controller.ts.backup-20261029 ===
+import { Body, Controller, Get, Patch, Param, Post, Query, Req, UseGuards, BadRequestException, NotFoundException } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import { IsEnum, IsISO8601, IsOptional, IsString, MinLength, IsIn } from 'class-validator';
+import { PrismaService } from './prisma.service';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { PermissionsGuard } from './permissions.guard';
+import { RequirePermissions } from './permissions.decorator';
+
+
+class ReviewAttendanceDto {
+  @IsIn(['CONFIRMED', 'VOIDED'])
+  status!: 'CONFIRMED' | 'VOIDED';
+
+  @IsString()
+  @MinLength(8)
+  reason!: string;
+}
+
+class ManualAttendanceDto {
+  @IsString() employeeId!: string;
+  @IsEnum(['ENTRY', 'BREAK_START', 'BREAK_END', 'EXIT']) type!: 'ENTRY'|'BREAK_START'|'BREAK_END'|'EXIT';
+  @IsISO8601() occurredAt!: string;
+  @IsString() @MinLength(8) reason!: string;
+}
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@ApiTags('attendance')
+@Controller('attendance')
+export class AttendanceController {
+  constructor(private prisma: PrismaService) {}
+  @Get()
+  @RequirePermissions('attendance.read')
+  async list(@Query('from') from?: string, @Query('to') to?: string, @Query('employeeId') employeeId?: string) {
+    const where: any = {};
+    if (employeeId) where.employeeId = employeeId;
+    if (from || to) where.occurredAt = { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) };
+
+    const records = await this.prisma.attendanceRecord.findMany({
+      where,
+      include: { employee: true },
+      orderBy: { occurredAt: 'desc' },
+      take: 1000
+    });
+
+    if (!records.length) return [];
+
+    const auditLogs = await this.prisma.auditLog.findMany({
+      where: {
+        entityType: 'AttendanceRecord',
+        entityId: { in: records.map(record => record.id) },
+        action: {
+          in: [
+            'ATTENDANCE_MANUAL_CREATED',
+            'ATTENDANCE_REVIEW_CONFIRMED',
+            'ATTENDANCE_REVIEW_VOIDED'
+          ]
+        }
+      },
+      select: {
+        entityId: true,
+        action: true,
+        reason: true,
+        createdAt: true,
+        user: { select: { id: true, fullName: true, email: true } }
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    // Recupera los usuarios que crearon las marcaciones, incluidos
+    // los registros que no tengan un evento de auditoría histórico.
+    const creatorIds = [...new Set(
+      records
+        .map(record => record.createdByUserId)
+        .filter((id): id is string => Boolean(id))
+    )];
+
+    const creators = creatorIds.length
+      ? await this.prisma.user.findMany({
+          where: { id: { in: creatorIds } },
+          select: { id: true, fullName: true, email: true }
+        })
+      : [];
+
+    const creatorsById = new Map(creators.map(user => [user.id, user]));
+
+    const logsByRecord = new Map<string, typeof auditLogs>();
+    for (const log of auditLogs) {
+      if (!log.entityId) continue;
+      const current = logsByRecord.get(log.entityId) ?? [];
+      current.push(log);
+      logsByRecord.set(log.entityId, current);
+    }
+
+    return records.map(record => ({
+      ...record,
+      creator: record.createdByUserId
+        ? creatorsById.get(record.createdByUserId) ?? null
+        : null,
+      auditTrail: (logsByRecord.get(record.id) ?? []).map(log => ({
+        action: log.action,
+        reason: log.reason,
+        createdAt: log.createdAt,
+        user: log.user
+      }))
+    }));
+  }
+
+  @Patch(':id/review')
+  @RequirePermissions('attendance.review')
+  async review(
+    @Param('id') id: string,
+    @Body() dto: ReviewAttendanceDto,
+    @Req() req: any
+  ) {
+    const reason = dto.reason.trim();
+    if (reason.length < 8) {
+      throw new BadRequestException('El motivo debe tener al menos 8 caracteres');
+    }
+
+    return this.prisma.$transaction(async tx => {
+      const before = await tx.attendanceRecord.findUnique({
+        where: { id },
+        include: { employee: true }
+      });
+
+      if (!before) {
+        throw new NotFoundException('Marcación no encontrada');
+      }
+      if (before.status !== 'PENDING_REVIEW') {
+        throw new BadRequestException(
+          'Solo se pueden revisar marcaciones pendientes de revisión'
+        );
+      }
+
+      const changed = await tx.attendanceRecord.updateMany({
+        where: { id, status: 'PENDING_REVIEW' },
+        data: { status: dto.status }
+      });
+
+      if (changed.count !== 1) {
+        throw new BadRequestException(
+          'La marcación cambió mientras se revisaba. Actualiza la lista'
+        );
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId: req.user.sub,
+          action: dto.status === 'CONFIRMED'
+            ? 'ATTENDANCE_REVIEW_CONFIRMED'
+            : 'ATTENDANCE_REVIEW_VOIDED',
+          entityType: 'AttendanceRecord',
+          entityId: id,
+          reason,
+          beforeJson: {
+            status: before.status,
+            type: before.type,
+            occurredAt: before.occurredAt.toISOString()
+          },
+          afterJson: {
+            status: dto.status,
+            reason
+          }
+        }
+      });
+
+      return tx.attendanceRecord.findUnique({
+        where: { id },
+        include: { employee: true }
+      });
+    });
+  }
+
+  @Post('manual')
+  @RequirePermissions('attendance.manual')
+  async manual(@Body() dto: ManualAttendanceDto, @Req() req: any) {
+    const adminUserId: string = req.user.sub;
+    if (!dto.reason.trim()) throw new BadRequestException('El motivo es obligatorio');
+    const employee = await this.prisma.employee.findUnique({ where: { id: dto.employeeId } });
+    if (!employee || employee.status !== 'ACTIVE') throw new BadRequestException('Trabajador no encontrado o inactivo');
+    const id = `manual_${crypto.randomUUID()}`;
+    return this.prisma.$transaction(async tx => {
+      const record = await tx.attendanceRecord.create({ data: {
+        eventId: id, employeeId: dto.employeeId, type: dto.type,
+        method: 'ADMIN_MANUAL', status: 'CONFIRMED', occurredAt: new Date(dto.occurredAt),
+        manualReason: dto.reason.trim(), createdByUserId: adminUserId
+      }});
+      await tx.manualAttendanceChange.create({ data: {
+        attendanceRecordId: record.id, action: 'CREATED', reason: dto.reason.trim(), adminUserId,
+        afterJson: { type: dto.type, occurredAt: dto.occurredAt, method: 'ADMIN_MANUAL' }
+      }});
+      await tx.auditLog.create({ data: {
+        userId: adminUserId, action: 'ATTENDANCE_MANUAL_CREATED', entityType: 'AttendanceRecord',
+        entityId: record.id, reason: dto.reason.trim(), afterJson: { type: dto.type, occurredAt: dto.occurredAt }
+      }});
+      return record;
+    });
+  }
+}
+===== REGISTRO DE MODULOS =====
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { PrismaService } from './prisma.service';
+import { AuthController } from './auth.controller';
+import { AuthService } from './auth.service';
+import { EmployeesController } from './employees.controller';
+import { AttendanceController } from './attendance.controller';
+import { AuditController } from './audit.controller';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { OrganizationController } from './organization.controller';
+import { ShiftsController } from './shifts.controller';
+import { UsersController } from './users.controller';
+import { PermissionsGuard } from './permissions.guard';
+import { BiometricDeviceController } from './biometric-device.controller';
+import { BiometricCredentialsController } from './biometric-credentials.controller';
+import { OvertimeController } from './overtime.controller';
+
+@Module({
+  imports: [ConfigModule.forRoot({ isGlobal: true }), JwtModule.register({}), ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }])],
+  controllers: [AuthController, EmployeesController, AttendanceController, AuditController, OrganizationController, ShiftsController, UsersController, BiometricDeviceController, BiometricCredentialsController, OvertimeController,],
+  providers: [PrismaService, AuthService, JwtAuthGuard, PermissionsGuard]
+})
+export class AppModule {}
+===== COMPONENTE DE MARCACION =====
+61-  lastEvent?: {
+62-    employeeName: string;
+63-    occurredAt: string;
+64-    result: 'ACCEPTED' | 'PENDING_REVIEW' | 'QUEUED' | 'REJECTED';
+65-    message?: string;
+66-  } | null;
+67-};
+68-
+69-const LOCAL_AGENT_URL = 'http://127.0.0.1:17865';
+70-
+71:function AttendanceTerminal() {
+72-  const [agent, setAgent] = useState<AgentStatus | null>(null);
+73-  const [connectionError, setConnectionError] = useState(false);
+74-
+75-  useEffect(() => {
+76-    let active = true;
+77-
+78-    const checkAgent = async () => {
+79-      try {
+80-        const response = await fetch(`${LOCAL_AGENT_URL}/status`, {
+81-          method: 'GET',
+82-          cache: 'no-store',
+83-          mode: 'cors'
+84-        });
+85-
+86-        if (!response.ok) {
+87-          throw new Error('Agente no disponible');
+88-        }
+89-
+90-        const data: AgentStatus = await response.json();
+91-
+92-        if (active) {
+93-          setAgent(data);
+94-          setConnectionError(false);
+95-        }
+96-      } catch {
+97-        if (active) {
+98-          setAgent(null);
+99-          setConnectionError(true);
+100-        }
+101-      }
+102-    };
+103-
+104-    void checkAgent();
+105-    const timer = window.setInterval(() => void checkAgent(), 2000);
+106-
+107-    return () => {
+108-      active = false;
+109-      window.clearInterval(timer);
+110-    };
+111-  }, []);
+112-
+113-  const connected = agent?.readerConnected === true;
+114-  const lastEvent = agent?.lastEvent;
+115-
+116-  const resultLabel = (result?: string) => {
+117-    switch (result) {
+118-      case 'ACCEPTED':
+119-        return 'Marcación registrada correctamente';
+120-      case 'PENDING_REVIEW':
+121-        return 'Marcación recibida, pendiente de revisión';
+122-      case 'QUEUED':
+123-        return 'Marcación guardada; pendiente de envío';
+124-      case 'REJECTED':
+125-        return 'Marcación rechazada por el servidor';
+126-      default:
+127-        return 'Procesando marcación';
+128-    }
+129-  };
+130-
+131-  return (
+132-    <main className="terminal-shell">
+133-      <section className="terminal-card">
+134-        <div className="terminal-mark">
+135-          <Fingerprint size={42} />
+136-        </div>
+137-
+138-        <p className="terminal-eyebrow">CONTROL DE ASISTENCIA</p>
+139-        <h1>Marcación de trabajadores</h1>
+140-
+141-        <div className="terminal-status">
+142-          <span
+143-            className="terminal-dot"
+144-            style={{
+145-              background: connected ? '#16a34a' : '#dc2626'
+146-            }}
+147-          />
+148-          <strong>
+149-            {!agent
+150-              ? 'Conectando con el terminal...'
+151-              : connected
+152-                ? 'Esperando huella'
+153-                : 'Lector no conectado'}
+154-          </strong>
+155-        </div>
+156-
+157-        <p className="terminal-message">
+158-          {connected
+159-            ? 'Coloca tu dedo en el lector para registrar tu asistencia.'
+160-            : 'Verifica que el lector ZKTeco esté conectado y que AsistenciaAgent esté ejecutándose.'}
+161-        </p>
+162-
+163-        {connectionError && (
+164-          <p className="terminal-warning">
+165-            No se pudo establecer comunicación con el servicio local de Windows.
+166-          </p>
+167-        )}
+168-
+169-        {agent && (
+170-          <div style={{ marginTop: 24 }}>
+171-            <p>
+172-              <strong>Plantillas registradas:</strong>{' '}
+173-              {agent.registeredTemplates}
+174-            </p>
+175-            <p>
+176-              <strong>Marcaciones pendientes:</strong>{' '}
+177-              {agent.pendingEvents}
+178-            </p>
+179-          </div>
+180-        )}
+181-
+182-        {lastEvent && (
+183-          <div className="panel" style={{ marginTop: 24, textAlign: 'left' }}>
+184-            <h3>Última marcación</h3>
+185-            <p><strong>Trabajador:</strong> {lastEvent.employeeName}</p>
+186-            <p>
+187-              <strong>Fecha:</strong>{' '}
+188-              {new Date(lastEvent.occurredAt).toLocaleString('es-CL')}
+189-            </p>
+190-            <p><strong>Resultado:</strong> {resultLabel(lastEvent.result)}</p>
+191-            {lastEvent.message && <p>{lastEvent.message}</p>}
+192-          </div>
+193-        )}
+194-      </section>
+195-    </main>
+196-  );
+197-}
+198-
+199-export default function App() {
+200-  if (window.location.pathname.replace(/\/$/, '') === '/marcacion') {
+201-    return <AttendanceTerminal />;
+202-  }
+203-
+204-  const [token,setToken] = useState(localStorage.getItem('attendance_token') || '');
+205-  const [email,setEmail] = useState('');
+206-  const [password,setPassword] = useState('');
+207-  const [error,setError] = useState('');
+208-  const [tab,setTab] = useState<'overview'|'employees'|'attendance'|'deviceEvents'|'users'|'organization'|'shifts'|'overtime'>('overview');
+209-  const [employees,setEmployees] = useState<Employee[]>([]);
+210-  const [records,setRecords] = useState<RecordRow[]>([]);
+211-  const [deviceEvents,setDeviceEvents] = useState<DeviceEventRow[]>([]);
+212-  const [deviceEventsBusy,setDeviceEventsBusy] = useState(false);
+213-  const [users,setUsers] = useState<UserRow[]>([]);
+214-  const [permissionCatalog,setPermissionCatalog] = useState<PermissionRow[]>([]);
+215-  const [editingPermissionsUser,setEditingPermissionsUser] = useState<UserRow|null>(null);
+216-  const [editingUser,setEditingUser] = useState<UserRow|null>(null);
+217-  const [userEditForm,setUserEditForm] = useState({fullName:'',email:'',password:'',confirmPassword:''});
+218-  const [selectedPermissionCodes,setSelectedPermissionCodes] = useState<string[]>([]);
+219-  const [departments,setDepartments] = useState<Department[]>([]);
+220-  const [branches,setBranches] = useState<Branch[]>([]);
+221-  const [shifts,setShifts] = useState<Shift[]>([]);
+222-  const [organizationBusy,setOrganizationBusy] = useState(false);
+223-  const [shiftBusy,setShiftBusy] = useState(false);
+224-  const [departmentName,setDepartmentName] = useState('');
+225-  const [branchForm,setBranchForm] = useState({name:'',address:''});
+226-  const [shiftForm,setShiftForm] = useState({
+227-    name:'',startTime:'09:00',endTime:'18:00',
+228-    breakStart:'13:00',breakEnd:'14:00',
+229-    toleranceMinutes:'5',mode:'FOUR_PUNCH' as 'TWO_PUNCH'|'FOUR_PUNCH',
+230-    crossesMidnight:false
+231-  });
+232-  const [assignmentForm,setAssignmentForm] = useState({
+233-    shiftId:'',employeeId:'',validFrom:'',validTo:''
+234-  });
+235-  const [userActionBusy,setUserActionBusy] = useState('');
+236-  const [query,setQuery] = useState('');
+237-  const [busy,setBusy] = useState(false);
+238-  const [employeeForm,setEmployeeForm] = useState({rut:'',firstName:'',lastName:'',position:''});
+239-  const [editingEmployee,setEditingEmployee] = useState<Employee | null>(null);
+240-  const [employeeStatusFilter,setEmployeeStatusFilter] = useState('ALL');
+241-  const [notice,setNotice] = useState('');
+242-  const [attendanceFrom,setAttendanceFrom] = useState('');
+243-  const [attendanceTo,setAttendanceTo] = useState('');
+244-  const [attendanceStatus,setAttendanceStatus] = useState('ALL');
+245-  const [attendanceEmployee,setAttendanceEmployee] = useState('ALL');
+246-  const [reviewBusy,setReviewBusy] = useState('');
+247-  const [overtimeRows, setOvertimeRows] = useState<OvertimeRow[]>([]);
+248-const [overtimeBusy, setOvertimeBusy] = useState(false);
+249-const [overtimeForm, setOvertimeForm] = useState({
+250-  employeeId: '',
+251-  workDate: new Date().toLocaleDateString('en-CA'),
+252-  startAt: '18:00',
+253-  endAt: '20:00',
+254-  reason: ''
+255-});
+256-const [overtimeFrom, setOvertimeFrom] = useState('');
+257-const [overtimeTo, setOvertimeTo] = useState('');
+258-const [overtimeEmployee, setOvertimeEmployee] = useState('ALL');
+259-
+260-  async function api(path:string, init:RequestInit={}) {
+261-    const res = await fetch(`${API}${path}`, { ...init, headers: { 'Content-Type':'application/json', ...(token ? { Authorization:`Bearer ${token}` } : {}), ...(init.headers || {}) } });
+262-    if (!res.ok) throw new Error((await res.text()).slice(0,300) || `HTTP ${res.status}`);
+263-    return res.json();
+264-  }
+265-  async function login(e:React.FormEvent) {
+266-    e.preventDefault(); setError('');
+267-    try {
+268-      const data = await api('/auth/login',{method:'POST',body:JSON.stringify({email,password})});
+269-      localStorage.setItem('attendance_token',data.accessToken); setToken(data.accessToken);
+270-    } catch { setError('No se pudo iniciar sesión. Verifica las credenciales y que la API esté disponible.'); }
+271-  }
+272-  async function load() {
+273-    if (!token) return;
+274-    setBusy(true); setError('');
+275-    try {
+276-      const employeeParams = new URLSearchParams({ q: query });
+277-      if (employeeStatusFilter !== 'ALL') employeeParams.set('status', employeeStatusFilter);
+278-      const [e,r] = await Promise.all([api(`/employees?${employeeParams.toString()}`),api('/attendance')]);
+279-      setEmployees(e); setRecords(r);
+280-    } catch (err:any) { setError(`No se pudieron cargar los datos. ${err.message || ''}`); }
+281-    finally { setBusy(false); }
+282-  }
+283-
+284-  async function loadDeviceEvents() {
+285-  if (!token) return;
+286-  setDeviceEventsBusy(true);
+287-  setError('');
+288-  try {
+289-    const data = await api('/device/events');
+290-    setDeviceEvents(data);
+291-  } catch (err: any) {
+292-    setError(`No se pudieron cargar los eventos del lector. ${err.message || ''}`);
+293-  } finally {
+294-    setDeviceEventsBusy(false);
+295-  }
+296-}
+297-  async function loadUsers() {
+298-    if (!token) return;
+299-    setError('');
+300-    try {
+301-      const [data, catalog] = await Promise.all([
+===== FUNCIONES BIOMETRICAS DEL FRONTEND =====
+1-import { useEffect, useMemo, useState } from 'react';
+2:import { Activity, BadgeCheck, CalendarClock, Download, Fingerprint, LayoutDashboard, LogIn, LogOut, Search, ShieldCheck, Users, Clock3, RefreshCw } from 'lucide-react';
+3-
+4-const API = '/api';
+5-type Employee = { id:string; rut:string; firstName:string; lastName:string; position?:string|null; status:string };
+6-type OvertimeRow = {
+7-  id: string;
+8-  workDate: string;
+9-  startAt: string;
+10-  endAt: string;
+11-  reason: string;
+12-  status: 'ACTIVE' | 'CANCELLED';
+13-  effectiveStatus: 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
+14-  createdAt: string;
+15-  cancelledAt?: string | null;
+16-  cancellationReason?: string | null;
+17-  employee: Employee;
+18-  authorizedBy: { id: string; fullName: string; email: string };
+19-  cancelledBy?: { id: string; fullName: string; email: string } | null;
+20-};
+21-type RecordRow = {
+22-  id:string; type:string; method:string; occurredAt:string;
+23-  employee:Employee; status:string; manualReason?:string|null;
+24-  creator?:{id:string;fullName:string;email:string}|null;
+25-  auditTrail?:{
+26-  action:string;
+27-  reason?:string|null;
+28-  createdAt:string;
+29-  user?:{id:string;fullName:string;email:string}|null;
+30-}[];
+31-};
+32-type UserRow = { id:string; email:string; fullName:string; status:'ACTIVE'|'DISABLED'; isSuperAdmin:boolean; createdAt:string; permissions:{code:string;description:string}[] };
+33-type DeviceEventRow = {
+34-  id: string;
+35-  eventId: string;
+36-  deviceId: string;
+37-  receivedAt: string;
+--
+123-        return 'Marcación guardada; pendiente de envío';
+124-      case 'REJECTED':
+125-        return 'Marcación rechazada por el servidor';
+126-      default:
+127-        return 'Procesando marcación';
+128-    }
+129-  };
+130-
+131-  return (
+132-    <main className="terminal-shell">
+133-      <section className="terminal-card">
+134-        <div className="terminal-mark">
+135:          <Fingerprint size={42} />
+136-        </div>
+137-
+138-        <p className="terminal-eyebrow">CONTROL DE ASISTENCIA</p>
+139-        <h1>Marcación de trabajadores</h1>
+140-
+141-        <div className="terminal-status">
+142-          <span
+143-            className="terminal-dot"
+144-            style={{
+145-              background: connected ? '#16a34a' : '#dc2626'
+146-            }}
+147-          />
+148-          <strong>
+149-            {!agent
+150-              ? 'Conectando con el terminal...'
+151-              : connected
+152:                ? 'Esperando huella'
+153-                : 'Lector no conectado'}
+154-          </strong>
+155-        </div>
+156-
+157-        <p className="terminal-message">
+158-          {connected
+159-            ? 'Coloca tu dedo en el lector para registrar tu asistencia.'
+160-            : 'Verifica que el lector ZKTeco esté conectado y que AsistenciaAgent esté ejecutándose.'}
+161-        </p>
+162-
+163-        {connectionError && (
+164-          <p className="terminal-warning">
+165-            No se pudo establecer comunicación con el servicio local de Windows.
+166-          </p>
+167-        )}
+168-
+169-        {agent && (
+170-          <div style={{ marginTop: 24 }}>
+171-            <p>
+172-              <strong>Plantillas registradas:</strong>{' '}
+173-              {agent.registeredTemplates}
+174-            </p>
+175-            <p>
+176-              <strong>Marcaciones pendientes:</strong>{' '}
+177-              {agent.pendingEvents}
+178-            </p>
+179-          </div>
+180-        )}
+181-
+182-        {lastEvent && (
+183-          <div className="panel" style={{ marginTop: 24, textAlign: 'left' }}>
+184-            <h3>Última marcación</h3>
+185-            <p><strong>Trabajador:</strong> {lastEvent.employeeName}</p>
+186-            <p>
+187-              <strong>Fecha:</strong>{' '}
+--
+1067-
+1068-      await load();
+1069-    } catch (err: any) {
+1070-      setError(`No se pudo ${action} la marcación. ${err.message || ''}`);
+1071-    } finally {
+1072-      setReviewBusy('');
+1073-    }
+1074-  }
+1075-
+1076-
+1077-  function logout() { localStorage.removeItem('attendance_token'); setToken(''); setEmployees([]); setRecords([]); }
+1078-
+1079:  if (!token) return <main className="login-shell"><section className="login-card"><div className="brand-mark"><Fingerprint size={28}/></div><p className="eyebrow">CONTROL LABORAL</p><h1>Asistencia</h1><p className="muted">Acceso al panel administrativo</p><form onSubmit={login} className="stack"><label>Correo electrónico<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required autoComplete="username"/></label><label>Contraseña<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required minLength={12} autoComplete="current-password"/></label>{error&&<p className="error">{error}</p>}<button className="primary"><LogIn size={17}/> Iniciar sesión</button></form><p className="footnote">Conecta la API y configura tu administrador mediante el seed de Prisma.</p></section></main>;
+1080-
+1081-  return <div className="app-shell">
+1082:    <aside className="sidebar"><div className="brand"><div className="brand-mark"><Fingerprint size={23}/></div><div><strong>Asistencia</strong><small>GESTIÓN LABORAL</small></div></div><div className="nav-label">MENÚ PRINCIPAL</div>
+1083-      <button className={tab==='overview'?'nav active':'nav'} onClick={()=>setTab('overview')}><LayoutDashboard size={18}/> Resumen</button>
+1084-      <button className={tab==='employees'?'nav active':'nav'} onClick={()=>setTab('employees')}><Users size={18}/> Trabajadores</button>
+1085-      <button className={tab==='attendance'?'nav active':'nav'} onClick={()=>setTab('attendance')}><CalendarClock size={18}/> Marcaciones</button>
+1086:      <button className={tab==='deviceEvents'?'nav active':'nav'} onClick={()=>setTab('deviceEvents')}><Fingerprint size={18}/> Eventos del lector</button>
+1087-      <button className={tab==='users'?'nav active':'nav'} onClick={()=>setTab('users')}><Users size={18}/> Usuarios</button>
+1088-      <button className={tab==='organization'?'nav active':'nav'} onClick={()=>setTab('organization')}><LayoutDashboard size={18}/> Organización</button>
+1089-      <button className={tab==='shifts'?'nav active':'nav'} onClick={()=>setTab('shifts')}><Clock3 size={18}/> Turnos</button>
+1090-      <button
+1091-  className={tab === 'overtime' ? 'nav active' : 'nav'}
+1092-  onClick={() => setTab('overtime')}
+1093->
+1094-  <Clock3 size={18}/> Horas extraordinarias
+1095-</button>
+1096-      <div className="sidebar-bottom"><div className="secure-note"><ShieldCheck size={18}/><span><b>Panel protegido</b><small>Revisa los permisos del servidor antes de producción.</small></span></div><button className="nav" onClick={logout}><LogOut size={18}/> Cerrar sesión</button></div>
+1097-    </aside>
+1098-    <main className="main">
+1099-      <header className="topbar"><div><p className="eyebrow">SISTEMA DE ASISTENCIA</p><h1>{tab==='overview'?'Resumen general':tab==='employees'?'Trabajadores':tab==='attendance'?'Marcaciones':tab==='deviceEvents'?'Eventos del lector':tab==='users'?'Usuarios':tab==='organization'?'Organización':tab==='shifts'?'Turnos':tab==='overtime'?'Horas extraordinarias':'Resumen general'}</h1></div><div className="top-actions"><span className="server-pill"><span className="dot"/> API conectada</span><button className="icon-button" onClick={()=>{
+1100-  if(tab==='users') void loadUsers();
+1101-  else if(tab==='deviceEvents') void loadDeviceEvents();
+1102-  else if(tab==='organization') void loadOrganization();
+1103-  else if(tab==='shifts') void loadShifts();
+1104-  else if(tab==='overtime') {
+1105-    void load();
+1106-    void loadOvertime();
+1107-  }
+1108-  else void load();
+1109-}} title="Actualizar"><RefreshCw size={17}/></button></div></header>
+1110-      {error&&<div className="alert error">{error}</div>}{notice&&<div className="alert">{notice}</div>}
+1111-      {tab==='overview'&&<><section className="welcome"><div><p className="eyebrow light">PANEL DE CONTROL</p><h2>Todo en orden, a primera vista.</h2><p>Consulta la actividad de asistencia y administra la información de tu equipo.</p></div><div className="welcome-icon"><Activity size={38}/></div></section>
+1112-        <section className="stat-grid"><Stat icon={<Users/>} label="Trabajadores cargados" value={String(employees.length)} hint="Registros disponibles"/><Stat icon={<Clock3/>} label="Marcaciones de hoy" value={String(todayCount)} hint="Según hora local del navegador"/><Stat icon={<BadgeCheck/>} label="Últimos registros" value={String(records.length)} hint="Máximo 1.000 registros consultados"/></section>
+1113-        <section className="panel"><div className="panel-head"><div><h3>Marcaciones recientes</h3><p>Eventos recibidos desde la base de datos</p></div><button className="secondary" onClick={()=>setTab('attendance')}>Ver marcaciones</button></div><Records rows={records.slice(0,8)}/></section></>}
+1114-      {tab==='employees'&&<><section className="panel"><div className="panel-head"><div><h3>Directorio de trabajadores</h3><p>Consulta trabajadores guardados en MySQL</p></div><form className="search" onSubmit={e=>{e.preventDefault();void load();}}><Search size={17}/><input placeholder="Buscar nombre o RUT" value={query} onChange={e=>setQuery(e.target.value)}/><select aria-label="Filtrar por estado" value={employeeStatusFilter} onChange={e=>setEmployeeStatusFilter(e.target.value)}><option value="ALL">Todos</option><option value="ACTIVE">Activos</option><option value="INACTIVE">Inactivos</option></select><button className="secondary">Buscar</button></form></div><div className="table-wrap"><table><thead><tr><th>Trabajador</th><th>RUT</th><th>Cargo</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>{employees.map(e=><tr key={e.id}><td><b>{e.firstName} {e.lastName}</b></td><td>{e.rut}</td><td>{e.position||'—'}</td><td><span className="status">{e.status==='ACTIVE'?'Activo':'Inactivo'}</span></td><td><div className="action-buttons"><button type="button" className="secondary" onClick={()=>startEmployeeEdit(e)}>Editar</button><button type="button" className="secondary" onClick={()=>void toggleEmployeeStatus(e)}>{e.status==='ACTIVE'?'Desactivar':'Reactivar'}</button></div></td></tr>)}</tbody></table>{!employees.length&&<div className="empty">No hay trabajadores para mostrar.</div>}</div></section>
+1115-        <section className="panel"><div className="panel-head"><div><h3>{editingEmployee ? 'Editar trabajador' : 'Agregar trabajador'}</h3><p>{editingEmployee ? 'Modifica los datos del trabajador seleccionado' : 'Los datos se guardarán en la base de datos'}</p></div></div><form className="employee-form" onSubmit={editingEmployee ? saveEmployeeEdit : createEmployee}><label>RUT<input value={employeeForm.rut} onChange={e=>setEmployeeForm({...employeeForm,rut:e.target.value})} required minLength={3}/></label><label>Nombre<input value={employeeForm.firstName} onChange={e=>setEmployeeForm({...employeeForm,firstName:e.target.value})} required/></label><label>Apellidos<input value={employeeForm.lastName} onChange={e=>setEmployeeForm({...employeeForm,lastName:e.target.value})} required/></label><label>Cargo<input value={employeeForm.position} onChange={e=>setEmployeeForm({...employeeForm,position:e.target.value})}/></label><div className="action-buttons"><button className="primary" type="submit">{editingEmployee ? 'Guardar cambios' : 'Guardar trabajador'}</button>{editingEmployee && <button className="secondary" type="button" onClick={()=>{setEditingEmployee(null);setEmployeeForm({rut:'',firstName:'',lastName:'',position:''});}}>Cancelar edición</button>}</div></form></section></>}
+1116-      {tab==='attendance'&&<section className="panel">
+1117-        <div className="panel-head">
+1118-          <div><h3>Historial y revisión de marcaciones</h3><p>Filtra los registros y revisa las marcaciones pendientes.</p></div>
+1119-          <button className="secondary" onClick={()=>downloadCsv(filteredRecords)}><Download size={16}/> Exportar filtrados ({filteredRecords.length})</button>
+1120-        </div>
+1121-        <div className="attendance-filters">
+--
+1962-            )}
+1963-          </div>
+1964-        </section>
+1965-      </>}
+1966-
+1967-      <footer>Asistencia · Base de desarrollo · Requiere revisión de seguridad y normativa antes de uso oficial.</footer>
+1968-    </main>
+1969-  </div>;
+1970-}
+1971-function Stat({icon,label,value,hint}:{icon:React.ReactNode,label:string,value:string,hint:string}) { return <div className="stat"><div className="stat-top"><span className="stat-icon">{icon}</span><span className="stat-hint">{hint}</span></div><p>{label}</p><strong>{value}</strong></div>; }
+1972-function Records({rows,onReview,reviewBusy='',showReason=false}:{rows:RecordRow[];onReview?:(record:RecordRow,status:'CONFIRMED'|'VOIDED')=>void;reviewBusy?:string;showReason?:boolean}) {
+1973-  const labels:any={ENTRY:'Entrada',BREAK_START:'Salida a colación',BREAK_END:'Regreso de colación',EXIT:'Salida final'};
+1974:  const methods:any={FINGERPRINT:'Huella',PIN:'PIN',ADMIN_MANUAL:'Manual'};
+1975-  const statuses:any={CONFIRMED:'Confirmada',PENDING_REVIEW:'Pendiente de revisión',VOIDED:'Anulada'};
+1976-  return <div className="table-wrap"><table><thead><tr><th>Trabajador</th><th>Tipo</th><th>Fecha y hora</th><th>Método</th><th>Estado</th>{showReason&&<><th>Motivo original</th><th>Creada por</th><th>Revisión y auditoría</th></>}{onReview&&<th>Acciones</th>}</tr></thead><tbody>{rows.map(r=><tr key={r.id}>
+1977-    <td><b>{r.employee?.firstName} {r.employee?.lastName}</b><small className="subcell">{r.employee?.rut}</small></td>
+1978-    <td>{labels[r.type]||r.type}</td><td>{fmt(r.occurredAt)}</td><td>{methods[r.method]||r.method}</td>
+1979-    <td><span className={`status ${r.status==='PENDING_REVIEW'?'status-pending':r.status==='VOIDED'?'status-voided':''}`}>{statuses[r.status]||r.status}</span></td>
+1980-    {showReason&&<>
+1981-      <td className="reason-cell">
+1982-  {r.manualReason ||
+1983-    r.auditTrail?.find(
+1984:      log => log.action === 'BIOMETRIC_PUNCH_PENDING_REVIEW'
+1985-    )?.reason ||
+1986-    '—'}
+1987-</td>
+1988-      <td className="reason-cell">
+1989-        {(() => {
+1990-          const createdEvent = r.auditTrail?.find(log => log.action === 'ATTENDANCE_MANUAL_CREATED');
+1991-          const creator = r.creator || createdEvent?.user;
+1992-          return <>
+1993-            <b>{creator?.fullName || 'No disponible'}</b>
+1994-            <small className="subcell">{creator?.email || 'Sin correo registrado'}</small>
+1995-            {createdEvent && <small className="subcell">Evento: {fmt(createdEvent.createdAt)}</small>}
+1996-          </>;
+1997-        })()}
+1998-      </td>
+1999-      <td className="reason-cell">
+2000-        {(() => {
+2001-          const reviewEvent = [...(r.auditTrail || [])].reverse().find(
+2002-            log => log.action === 'ATTENDANCE_REVIEW_CONFIRMED' ||
+2003-                   log.action === 'ATTENDANCE_REVIEW_VOIDED'
+2004-          );
+2005-          if (!reviewEvent) {
+2006-            return <span className="subcell">Sin revisión registrada</span>;
+2007-          }
+2008-          const confirmed = reviewEvent.action === 'ATTENDANCE_REVIEW_CONFIRMED';
+2009-          return <>
+2010-            <b>{confirmed ? 'Confirmada por' : 'Anulada por'}</b>
+2011-            <small className="subcell">{reviewEvent.user?.fullName || 'Usuario no disponible'}</small>
+2012-            <small className="subcell">{fmt(reviewEvent.createdAt)}</small>
+2013-            <small className="subcell">Motivo: {reviewEvent.reason || 'No registrado'}</small>
+2014-          </>;
+2015-        })()}
+2016-      </td>
+2017-    </>}
+2018-    {onReview&&<td>{r.status==='PENDING_REVIEW'?<div className="action-buttons"><button type="button" className="secondary" disabled={reviewBusy===r.id} onClick={()=>void onReview(r,'CONFIRMED')}>Confirmar</button><button type="button" className="danger-button" disabled={reviewBusy===r.id} onClick={()=>void onReview(r,'VOIDED')}>Anular</button></div>:<span className="subcell">Sin acciones</span>}</td>}
+2019-  </tr>)}</tbody></table>{!rows.length&&<div className="empty">No hay marcaciones para mostrar con estos filtros.</div>}</div>;
+2020-}
+2021:function downloadCsv(rows:RecordRow[]) { const lines=[['Trabajador','RUT','Tipo','Fecha','Método','Estado'],...rows.map(r=>[`${r.employee?.firstName||''} ${r.employee?.lastName||''}`,r.employee?.rut||'',r.type,r.occurredAt,r.method,r.status])]; const csv=lines.map(line=>line.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(';')).join('\r\n'); const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'})); const a=document.createElement('a'); a.href=url; a.download='marcaciones.csv'; a.click(); URL.revokeObjectURL(url); }
+===== CONFIGURACION CORS Y VALIDACION API =====
+import 'reflect-metadata';
+import { ValidationPipe } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
+import helmet from 'helmet';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  app.setGlobalPrefix('api');
+  app.use(helmet());
+  app.enableCors({
+    origin: (process.env.WEB_ORIGIN || 'http://localhost:5173').split(','),
+    credentials: true
+  });
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+  const swagger = new DocumentBuilder().setTitle('Asistencia API').setDescription('API del sistema de asistencia').setVersion('0.1.0').addBearerAuth().build();
+  SwaggerModule.setup('api/docs', app, SwaggerModule.createDocument(app, swagger));
+  await app.listen(Number(process.env.API_PORT || 3000), '0.0.0.0');
+}
+bootstrap();
+root@gyquoxm8:/home/asistencia#
