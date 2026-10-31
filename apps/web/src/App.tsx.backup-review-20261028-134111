@@ -1,0 +1,597 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Activity, BadgeCheck, CalendarClock, Download, Fingerprint, LayoutDashboard, LogIn, LogOut, Search, ShieldCheck, Users, Clock3, RefreshCw } from 'lucide-react';
+
+const API = '/api';
+type Employee = { id:string; rut:string; firstName:string; lastName:string; position?:string|null; status:string };
+type RecordRow = { id:string; type:string; method:string; occurredAt:string; employee:Employee; status:string };
+type UserRow = { id:string; email:string; fullName:string; status:'ACTIVE'|'DISABLED'; isSuperAdmin:boolean; createdAt:string; permissions:{code:string;description:string}[] };
+type Department = { id:string; name:string; _count?:{employees:number} };
+type Branch = { id:string; name:string; address?:string|null; _count?:{employees:number} };
+type Shift = {
+  id:string; name:string; startTime:string; endTime:string;
+  breakStart?:string|null; breakEnd?:string|null;
+  toleranceMinutes:number; mode:'TWO_PUNCH'|'FOUR_PUNCH';
+  crossesMidnight:boolean; active:boolean;
+  assignments?:{
+    id:string; validFrom:string; validTo?:string|null;
+    employee:{id:string;rut:string;firstName:string;lastName:string;status:string}
+  }[];
+};
+const fmt = (d:string) => new Date(d).toLocaleString('es-CL', { dateStyle:'short', timeStyle:'medium' });
+
+export default function App() {
+  const [token,setToken] = useState(localStorage.getItem('attendance_token') || '');
+  const [email,setEmail] = useState('');
+  const [password,setPassword] = useState('');
+  const [error,setError] = useState('');
+  const [tab,setTab] = useState<'overview'|'employees'|'attendance'|'users'|'organization'|'shifts'>('overview');
+  const [employees,setEmployees] = useState<Employee[]>([]);
+  const [records,setRecords] = useState<RecordRow[]>([]);
+  const [users,setUsers] = useState<UserRow[]>([]);
+  const [departments,setDepartments] = useState<Department[]>([]);
+  const [branches,setBranches] = useState<Branch[]>([]);
+  const [shifts,setShifts] = useState<Shift[]>([]);
+  const [organizationBusy,setOrganizationBusy] = useState(false);
+  const [shiftBusy,setShiftBusy] = useState(false);
+  const [departmentName,setDepartmentName] = useState('');
+  const [branchForm,setBranchForm] = useState({name:'',address:''});
+  const [shiftForm,setShiftForm] = useState({
+    name:'',startTime:'09:00',endTime:'18:00',
+    breakStart:'13:00',breakEnd:'14:00',
+    toleranceMinutes:'5',mode:'FOUR_PUNCH' as 'TWO_PUNCH'|'FOUR_PUNCH',
+    crossesMidnight:false
+  });
+  const [assignmentForm,setAssignmentForm] = useState({
+    shiftId:'',employeeId:'',validFrom:'',validTo:''
+  });
+  const [userActionBusy,setUserActionBusy] = useState('');
+  const [query,setQuery] = useState('');
+  const [busy,setBusy] = useState(false);
+  const [employeeForm,setEmployeeForm] = useState({rut:'',firstName:'',lastName:'',position:''});
+  const [editingEmployee,setEditingEmployee] = useState<Employee | null>(null);
+  const [employeeStatusFilter,setEmployeeStatusFilter] = useState('ALL');
+  const [notice,setNotice] = useState('');
+
+  async function api(path:string, init:RequestInit={}) {
+    const res = await fetch(`${API}${path}`, { ...init, headers: { 'Content-Type':'application/json', ...(token ? { Authorization:`Bearer ${token}` } : {}), ...(init.headers || {}) } });
+    if (!res.ok) throw new Error((await res.text()).slice(0,300) || `HTTP ${res.status}`);
+    return res.json();
+  }
+  async function login(e:React.FormEvent) {
+    e.preventDefault(); setError('');
+    try {
+      const data = await api('/auth/login',{method:'POST',body:JSON.stringify({email,password})});
+      localStorage.setItem('attendance_token',data.accessToken); setToken(data.accessToken);
+    } catch { setError('No se pudo iniciar sesión. Verifica las credenciales y que la API esté disponible.'); }
+  }
+  async function load() {
+    if (!token) return;
+    setBusy(true); setError('');
+    try {
+      const employeeParams = new URLSearchParams({ q: query });
+      if (employeeStatusFilter !== 'ALL') employeeParams.set('status', employeeStatusFilter);
+      const [e,r] = await Promise.all([api(`/employees?${employeeParams.toString()}`),api('/attendance')]);
+      setEmployees(e); setRecords(r);
+    } catch (err:any) { setError(`No se pudieron cargar los datos. ${err.message || ''}`); }
+    finally { setBusy(false); }
+  }
+  async function loadUsers() {
+    if (!token) return;
+    setError('');
+    try {
+      const data = await api('/users');
+      setUsers(data);
+    } catch (err:any) {
+      setError(`No se pudieron cargar los usuarios. ${err.message || ''}`);
+    }
+  }
+
+  async function toggleUserStatus(user:UserRow) {
+    const activating = user.status === 'DISABLED';
+    const nextStatus = activating ? 'ACTIVE' : 'DISABLED';
+    const action = activating ? 'activar' : 'desactivar';
+
+    if (!window.confirm(`¿Seguro que deseas ${action} la cuenta de ${user.fullName} (${user.email})?`)) return;
+
+    setUserActionBusy(user.id);
+    setError('');
+    setNotice('');
+
+    try {
+      await api(`/users/${encodeURIComponent(user.id)}/status`, {
+        method:'PATCH',
+        body:JSON.stringify({status:nextStatus})
+      });
+      setNotice(`Cuenta ${activating ? 'activada' : 'desactivada'} correctamente: ${user.email}`);
+      await loadUsers();
+    } catch (err:any) {
+      setError(`No se pudo cambiar el estado de la cuenta. ${err.message || ''}`);
+    } finally {
+      setUserActionBusy('');
+    }
+  }
+
+  async function loadOrganization() {
+    if (!token) return;
+    setOrganizationBusy(true);
+    try {
+      const [d,b] = await Promise.all([
+        api('/departments'),
+        api('/branches')
+      ]);
+      setDepartments(d);
+      setBranches(b);
+    } catch (err:any) {
+      setError(`No se pudo cargar la organización. ${err.message || ''}`);
+    } finally {
+      setOrganizationBusy(false);
+    }
+  }
+
+  async function loadShifts() {
+    if (!token) return;
+    setShiftBusy(true);
+    try {
+      const [s,e] = await Promise.all([
+        api('/shifts'),
+        api('/employees?status=ACTIVE')
+      ]);
+      setShifts(s);
+      setEmployees(e);
+      setAssignmentForm(old => ({
+        ...old,
+        shiftId: old.shiftId || (s[0]?.id ?? ''),
+        employeeId: old.employeeId || (e[0]?.id ?? '')
+      }));
+    } catch (err:any) {
+      setError(`No se pudieron cargar los turnos. ${err.message || ''}`);
+    } finally {
+      setShiftBusy(false);
+    }
+  }
+
+  async function createDepartment(e:React.FormEvent) {
+    e.preventDefault();
+    setNotice('');
+    setError('');
+    try {
+      await api('/departments', {
+        method:'POST',
+        body:JSON.stringify({name:departmentName.trim()})
+      });
+      setDepartmentName('');
+      setNotice('Departamento creado correctamente.');
+      await loadOrganization();
+    } catch (err:any) {
+      setError(`No se pudo crear el departamento. ${err.message || ''}`);
+    }
+  }
+
+  async function createBranch(e:React.FormEvent) {
+    e.preventDefault();
+    setNotice('');
+    setError('');
+    try {
+      await api('/branches', {
+        method:'POST',
+        body:JSON.stringify({
+          name:branchForm.name.trim(),
+          address:branchForm.address.trim() || undefined
+        })
+      });
+      setBranchForm({name:'',address:''});
+      setNotice('Sucursal creada correctamente.');
+      await loadOrganization();
+    } catch (err:any) {
+      setError(`No se pudo crear la sucursal. ${err.message || ''}`);
+    }
+  }
+
+  async function createShift(e:React.FormEvent) {
+    e.preventDefault();
+    setNotice('');
+    setError('');
+    try {
+      const payload:any = {
+        name:shiftForm.name.trim(),
+        startTime:shiftForm.startTime,
+        endTime:shiftForm.endTime,
+        toleranceMinutes:Number(shiftForm.toleranceMinutes || 0),
+        mode:shiftForm.mode,
+        crossesMidnight:shiftForm.crossesMidnight
+      };
+      if (shiftForm.mode === 'FOUR_PUNCH') {
+        payload.breakStart = shiftForm.breakStart;
+        payload.breakEnd = shiftForm.breakEnd;
+      }
+      await api('/shifts', {
+        method:'POST',
+        body:JSON.stringify(payload)
+      });
+      setShiftForm(old => ({...old,name:''}));
+      setNotice('Turno creado correctamente.');
+      await loadShifts();
+    } catch (err:any) {
+      setError(`No se pudo crear el turno. ${err.message || ''}`);
+    }
+  }
+
+
+  async function deleteShift(shift: Shift) {
+    const ok = window.confirm(
+      `¿Eliminar el turno "${shift.name}"?\n\n` +
+      'Solo se podrá eliminar si no tiene asignaciones ni sesiones de trabajo históricas.'
+    );
+    if (!ok) return;
+
+    setNotice('');
+    setError('');
+    try {
+      await api(`/shifts/${encodeURIComponent(shift.id)}`, {
+        method: 'DELETE'
+      });
+      setNotice(`Turno "${shift.name}" eliminado correctamente.`);
+      await loadShifts();
+    } catch (err: any) {
+      setError(`No se pudo eliminar el turno. ${err.message || ''}`);
+    }
+  }
+
+  async function removeShiftAssignment(
+    shift: Shift,
+    assignment: NonNullable<Shift['assignments']>[number]
+  ) {
+    const employeeName =
+      `${assignment.employee.firstName} ${assignment.employee.lastName}`;
+
+    const ok = window.confirm(
+      `¿Quitar el turno "${shift.name}" de ${employeeName}?\n\n` +
+      'Los demás turnos del trabajador no se modificarán.'
+    );
+    if (!ok) return;
+
+    setNotice('');
+    setError('');
+    try {
+      await api(
+        `/shifts/${encodeURIComponent(shift.id)}/assignments/${encodeURIComponent(assignment.id)}`,
+        { method: 'DELETE' }
+      );
+      setNotice(`Se quitó el turno "${shift.name}" de ${employeeName}.`);
+      await loadShifts();
+    } catch (err: any) {
+      setError(`No se pudo quitar la asignación. ${err.message || ''}`);
+    }
+  }
+
+  async function assignShift(e:React.FormEvent) {
+    e.preventDefault();
+    setNotice('');
+    setError('');
+    if (!assignmentForm.shiftId || !assignmentForm.employeeId || !assignmentForm.validFrom) {
+      setError('Selecciona un turno, un trabajador y la fecha inicial.');
+      return;
+    }
+    try {
+      await api(`/shifts/${encodeURIComponent(assignmentForm.shiftId)}/assignments`, {
+        method:'POST',
+        body:JSON.stringify({
+          employeeId:assignmentForm.employeeId,
+          validFrom:assignmentForm.validFrom,
+          ...(assignmentForm.validTo ? {validTo:assignmentForm.validTo} : {})
+        })
+      });
+      setNotice('Turno asignado correctamente.');
+      setAssignmentForm(old => ({...old,validTo:''}));
+      await loadShifts();
+    } catch (err:any) {
+      setError(`No se pudo asignar el turno. ${err.message || ''}`);
+    }
+  }
+
+  useEffect(()=>{
+    if (!token) return;
+    if (tab === 'users') void loadUsers();
+    else if (tab === 'organization') void loadOrganization();
+    else if (tab === 'shifts') void loadShifts();
+    else void load();
+  },[token,tab]);
+  const todayCount = useMemo(()=>records.filter(r=>new Date(r.occurredAt).toDateString()===new Date().toDateString()).length,[records]);
+  async function createEmployee(e:React.FormEvent) {
+    e.preventDefault(); setNotice('');
+    try {
+      await api('/employees',{method:'POST',body:JSON.stringify(employeeForm)});
+      setEmployeeForm({rut:'',firstName:'',lastName:'',position:''}); setNotice('Trabajador creado.'); await load();
+    } catch(err:any) { setNotice(`No se pudo crear: ${err.message}`); }
+  }
+
+  function startEmployeeEdit(employee: Employee) {
+    setEditingEmployee(employee);
+    setEmployeeForm({
+      rut: employee.rut,
+      firstName: employee.firstName,
+      lastName: employee.lastName,
+      position: employee.position || ''
+    });
+    setNotice('');
+    setError('');
+  }
+
+  async function saveEmployeeEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingEmployee) return;
+    setNotice('');
+    setError('');
+
+    try {
+      await api(`/employees/${encodeURIComponent(editingEmployee.id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify(employeeForm)
+      });
+      setNotice('Trabajador actualizado correctamente.');
+      setEditingEmployee(null);
+      setEmployeeForm({rut:'',firstName:'',lastName:'',position:''});
+      await load();
+    } catch (err: any) {
+      setError(`No se pudo actualizar el trabajador. ${err.message || ''}`);
+    }
+  }
+
+  async function toggleEmployeeStatus(employee: Employee) {
+    const activating = employee.status !== 'ACTIVE';
+    const action = activating ? 'reactivar' : 'desactivar';
+
+    if (!window.confirm(
+      `¿Deseas ${action} a ${employee.firstName} ${employee.lastName}?\n\nSu historial de asistencia se conservará.`
+    )) return;
+
+    setError('');
+    setNotice('');
+
+    try {
+      await api(
+        `/employees/${encodeURIComponent(employee.id)}/${activating ? 'activate' : 'deactivate'}`,
+        { method: 'POST' }
+      );
+      setNotice(`Trabajador ${activating ? 'reactivado' : 'desactivado'} correctamente.`);
+      await load();
+    } catch (err: any) {
+      setError(`No se pudo ${action} al trabajador. ${err.message || ''}`);
+    }
+  }
+
+  function logout() { localStorage.removeItem('attendance_token'); setToken(''); setEmployees([]); setRecords([]); }
+
+  if (!token) return <main className="login-shell"><section className="login-card"><div className="brand-mark"><Fingerprint size={28}/></div><p className="eyebrow">CONTROL LABORAL</p><h1>Asistencia</h1><p className="muted">Acceso al panel administrativo</p><form onSubmit={login} className="stack"><label>Correo electrónico<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required autoComplete="username"/></label><label>Contraseña<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required minLength={12} autoComplete="current-password"/></label>{error&&<p className="error">{error}</p>}<button className="primary"><LogIn size={17}/> Iniciar sesión</button></form><p className="footnote">Conecta la API y configura tu administrador mediante el seed de Prisma.</p></section></main>;
+
+  return <div className="app-shell">
+    <aside className="sidebar"><div className="brand"><div className="brand-mark"><Fingerprint size={23}/></div><div><strong>Asistencia</strong><small>GESTIÓN LABORAL</small></div></div><div className="nav-label">MENÚ PRINCIPAL</div>
+      <button className={tab==='overview'?'nav active':'nav'} onClick={()=>setTab('overview')}><LayoutDashboard size={18}/> Resumen</button>
+      <button className={tab==='employees'?'nav active':'nav'} onClick={()=>setTab('employees')}><Users size={18}/> Trabajadores</button>
+      <button className={tab==='attendance'?'nav active':'nav'} onClick={()=>setTab('attendance')}><CalendarClock size={18}/> Marcaciones</button>
+      <button className={tab==='users'?'nav active':'nav'} onClick={()=>setTab('users')}><Users size={18}/> Usuarios</button>
+      <button className={tab==='organization'?'nav active':'nav'} onClick={()=>setTab('organization')}><LayoutDashboard size={18}/> Organización</button>
+      <button className={tab==='shifts'?'nav active':'nav'} onClick={()=>setTab('shifts')}><Clock3 size={18}/> Turnos</button>
+      <div className="sidebar-bottom"><div className="secure-note"><ShieldCheck size={18}/><span><b>Panel protegido</b><small>Revisa los permisos del servidor antes de producción.</small></span></div><button className="nav" onClick={logout}><LogOut size={18}/> Cerrar sesión</button></div>
+    </aside>
+    <main className="main">
+      <header className="topbar"><div><p className="eyebrow">SISTEMA DE ASISTENCIA</p><h1>{tab==='overview'?'Resumen general':tab==='employees'?'Trabajadores':tab==='attendance'?'Marcaciones':tab==='users'?'Usuarios':tab==='organization'?'Organización':'Turnos'}</h1></div><div className="top-actions"><span className="server-pill"><span className="dot"/> API conectada</span><button className="icon-button" onClick={()=>{
+        if(tab==='users') void loadUsers();
+        else if(tab==='organization') void loadOrganization();
+        else if(tab==='shifts') void loadShifts();
+        else void load();
+      }} title="Actualizar"><RefreshCw size={17}/></button></div></header>
+      {error&&<div className="alert error">{error}</div>}{notice&&<div className="alert">{notice}</div>}
+      {tab==='overview'&&<><section className="welcome"><div><p className="eyebrow light">PANEL DE CONTROL</p><h2>Todo en orden, a primera vista.</h2><p>Consulta la actividad de asistencia y administra la información de tu equipo.</p></div><div className="welcome-icon"><Activity size={38}/></div></section>
+        <section className="stat-grid"><Stat icon={<Users/>} label="Trabajadores cargados" value={String(employees.length)} hint="Registros disponibles"/><Stat icon={<Clock3/>} label="Marcaciones de hoy" value={String(todayCount)} hint="Según hora local del navegador"/><Stat icon={<BadgeCheck/>} label="Últimos registros" value={String(records.length)} hint="Máximo 1.000 registros consultados"/></section>
+        <section className="panel"><div className="panel-head"><div><h3>Marcaciones recientes</h3><p>Eventos recibidos desde la base de datos</p></div><button className="secondary" onClick={()=>setTab('attendance')}>Ver marcaciones</button></div><Records rows={records.slice(0,8)}/></section></>}
+      {tab==='employees'&&<><section className="panel"><div className="panel-head"><div><h3>Directorio de trabajadores</h3><p>Consulta trabajadores guardados en MySQL</p></div><form className="search" onSubmit={e=>{e.preventDefault();void load();}}><Search size={17}/><input placeholder="Buscar nombre o RUT" value={query} onChange={e=>setQuery(e.target.value)}/><select aria-label="Filtrar por estado" value={employeeStatusFilter} onChange={e=>setEmployeeStatusFilter(e.target.value)}><option value="ALL">Todos</option><option value="ACTIVE">Activos</option><option value="INACTIVE">Inactivos</option></select><button className="secondary">Buscar</button></form></div><div className="table-wrap"><table><thead><tr><th>Trabajador</th><th>RUT</th><th>Cargo</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>{employees.map(e=><tr key={e.id}><td><b>{e.firstName} {e.lastName}</b></td><td>{e.rut}</td><td>{e.position||'—'}</td><td><span className="status">{e.status==='ACTIVE'?'Activo':'Inactivo'}</span></td><td><div className="action-buttons"><button type="button" className="secondary" onClick={()=>startEmployeeEdit(e)}>Editar</button><button type="button" className="secondary" onClick={()=>void toggleEmployeeStatus(e)}>{e.status==='ACTIVE'?'Desactivar':'Reactivar'}</button></div></td></tr>)}</tbody></table>{!employees.length&&<div className="empty">No hay trabajadores para mostrar.</div>}</div></section>
+        <section className="panel"><div className="panel-head"><div><h3>{editingEmployee ? 'Editar trabajador' : 'Agregar trabajador'}</h3><p>{editingEmployee ? 'Modifica los datos del trabajador seleccionado' : 'Los datos se guardarán en la base de datos'}</p></div></div><form className="employee-form" onSubmit={editingEmployee ? saveEmployeeEdit : createEmployee}><label>RUT<input value={employeeForm.rut} onChange={e=>setEmployeeForm({...employeeForm,rut:e.target.value})} required minLength={3}/></label><label>Nombre<input value={employeeForm.firstName} onChange={e=>setEmployeeForm({...employeeForm,firstName:e.target.value})} required/></label><label>Apellidos<input value={employeeForm.lastName} onChange={e=>setEmployeeForm({...employeeForm,lastName:e.target.value})} required/></label><label>Cargo<input value={employeeForm.position} onChange={e=>setEmployeeForm({...employeeForm,position:e.target.value})}/></label><div className="action-buttons"><button className="primary" type="submit">{editingEmployee ? 'Guardar cambios' : 'Guardar trabajador'}</button>{editingEmployee && <button className="secondary" type="button" onClick={()=>{setEditingEmployee(null);setEmployeeForm({rut:'',firstName:'',lastName:'',position:''});}}>Cancelar edición</button>}</div></form></section></>}
+      {tab==='attendance'&&<section className="panel"><div className="panel-head"><div><h3>Historial de marcaciones</h3><p>Registros almacenados en MySQL</p></div><button className="secondary" onClick={()=>downloadCsv(records)}><Download size={16}/> Exportar CSV</button></div><Records rows={records}/></section>}
+      {tab==='users'&&<section className="panel">
+        <div className="panel-head">
+          <div>
+            <h3>Administración de usuarios</h3>
+            <p>Activa o desactiva cuentas y consulta sus permisos asignados.</p>
+          </div>
+          <button className="secondary" onClick={()=>void loadUsers()} disabled={!!userActionBusy}>
+            <RefreshCw size={16}/> Actualizar
+          </button>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Usuario</th><th>Tipo</th><th>Permisos</th><th>Estado</th><th>Acción</th></tr>
+            </thead>
+            <tbody>
+              {users.map(user=><tr key={user.id}>
+                <td>
+                  <b>{user.fullName}</b>
+                  <small className="subcell">{user.email}</small>
+                </td>
+                <td>{user.isSuperAdmin?'Superadministrador':'Usuario'}</td>
+                <td>{user.permissions?.length ? user.permissions.map(p=>p.code).join(', ') : user.isSuperAdmin?'Todos (superadministrador)':'Sin permisos asignados'}</td>
+                <td>
+                  <span className="status">{user.status==='ACTIVE'?'Activo':'Desactivado'}</span>
+                </td>
+                <td>
+                  <button
+                    className={user.status==='ACTIVE'?'secondary':'primary'}
+                    disabled={!!userActionBusy}
+                    onClick={()=>void toggleUserStatus(user)}
+                  >
+                    {userActionBusy===user.id?'Procesando…':user.status==='ACTIVE'?'Desactivar':'Activar'}
+                  </button>
+                </td>
+              </tr>)}
+            </tbody>
+          </table>
+          {!users.length&&<div className="empty">No hay usuarios para mostrar o no se pudieron cargar.</div>}
+        </div>
+      </section>}
+      {tab==='organization'&&<>
+        <section className="stat-grid">
+          <Stat icon={<Users/>} label="Departamentos" value={String(departments.length)} hint="Guardados en MySQL"/>
+          <Stat icon={<LayoutDashboard/>} label="Sucursales" value={String(branches.length)} hint="Guardadas en MySQL"/>
+        </section>
+        <section className="panel">
+          <div className="panel-head">
+            <div><h3>Departamentos</h3><p>Organiza a los trabajadores por área.</p></div>
+            <button className="secondary" onClick={()=>void loadOrganization()} disabled={organizationBusy}><RefreshCw size={16}/> Actualizar</button>
+          </div>
+          <form className="employee-form" onSubmit={createDepartment}>
+            <label>Nombre del departamento
+              <input value={departmentName} onChange={e=>setDepartmentName(e.target.value)} minLength={2} required placeholder="Ej. Administración"/>
+            </label>
+            <button className="primary" disabled={organizationBusy}>Crear departamento</button>
+          </form>
+          <div className="table-wrap">
+            <table><thead><tr><th>Departamento</th><th>Trabajadores</th></tr></thead>
+              <tbody>{departments.map(d=><tr key={d.id}><td><b>{d.name}</b></td><td>{d._count?.employees ?? '—'}</td></tr>)}</tbody>
+            </table>
+            {!departments.length&&<div className="empty">No hay departamentos registrados.</div>}
+          </div>
+        </section>
+        <section className="panel">
+          <div className="panel-head"><div><h3>Sucursales</h3><p>Registra las ubicaciones de la empresa.</p></div></div>
+          <form className="employee-form" onSubmit={createBranch}>
+            <label>Nombre de la sucursal
+              <input value={branchForm.name} onChange={e=>setBranchForm({...branchForm,name:e.target.value})} minLength={2} required placeholder="Ej. Casa matriz"/>
+            </label>
+            <label>Dirección
+              <input value={branchForm.address} onChange={e=>setBranchForm({...branchForm,address:e.target.value})} placeholder="Calle, número y comuna"/>
+            </label>
+            <button className="primary" disabled={organizationBusy}>Crear sucursal</button>
+          </form>
+          <div className="table-wrap">
+            <table><thead><tr><th>Sucursal</th><th>Dirección</th><th>Trabajadores</th></tr></thead>
+              <tbody>{branches.map(b=><tr key={b.id}><td><b>{b.name}</b></td><td>{b.address||'—'}</td><td>{b._count?.employees ?? '—'}</td></tr>)}</tbody>
+            </table>
+            {!branches.length&&<div className="empty">No hay sucursales registradas.</div>}
+          </div>
+        </section>
+      </>}
+
+      {tab==='shifts'&&<>
+        <section className="panel">
+          <div className="panel-head">
+            <div><h3>Crear turno</h3><p>Define los horarios y la modalidad de marcación.</p></div>
+            <button className="secondary" onClick={()=>void loadShifts()} disabled={shiftBusy}><RefreshCw size={16}/> Actualizar</button>
+          </div>
+          <form className="employee-form" onSubmit={createShift}>
+            <label>Nombre del turno
+              <input value={shiftForm.name} onChange={e=>setShiftForm({...shiftForm,name:e.target.value})} minLength={2} required placeholder="Ej. Turno diurno"/>
+            </label>
+            <label>Hora de entrada
+              <input type="time" value={shiftForm.startTime} onChange={e=>setShiftForm({...shiftForm,startTime:e.target.value})} required/>
+            </label>
+            <label>Hora de salida
+              <input type="time" value={shiftForm.endTime} onChange={e=>setShiftForm({...shiftForm,endTime:e.target.value})} required/>
+            </label>
+            <label>Modalidad
+              <select value={shiftForm.mode} onChange={e=>setShiftForm({...shiftForm,mode:e.target.value as 'TWO_PUNCH'|'FOUR_PUNCH'})}>
+                <option value="FOUR_PUNCH">4 marcaciones (entrada, colación, regreso, salida)</option>
+                <option value="TWO_PUNCH">2 marcaciones (entrada y salida)</option>
+              </select>
+            </label>
+            {shiftForm.mode==='FOUR_PUNCH'&&<>
+              <label>Inicio de colación
+                <input type="time" value={shiftForm.breakStart} onChange={e=>setShiftForm({...shiftForm,breakStart:e.target.value})} required/>
+              </label>
+              <label>Fin de colación
+                <input type="time" value={shiftForm.breakEnd} onChange={e=>setShiftForm({...shiftForm,breakEnd:e.target.value})} required/>
+              </label>
+            </>}
+            <label>Tolerancia (minutos)
+              <input type="number" min="0" step="1" value={shiftForm.toleranceMinutes} onChange={e=>setShiftForm({...shiftForm,toleranceMinutes:e.target.value})} required/>
+            </label>
+            <label>
+              <span>El turno termina al día siguiente</span>
+              <input type="checkbox" checked={shiftForm.crossesMidnight} onChange={e=>setShiftForm({...shiftForm,crossesMidnight:e.target.checked})}/>
+            </label>
+            <button className="primary" disabled={shiftBusy}>Guardar turno</button>
+          </form>
+        </section>
+
+        <section className="panel">
+          <div className="panel-head"><div><h3>Asignar turno</h3><p>Selecciona un trabajador y el período de vigencia.</p></div></div>
+          <form className="employee-form" onSubmit={assignShift}>
+            <label>Turno
+              <select value={assignmentForm.shiftId} onChange={e=>setAssignmentForm({...assignmentForm,shiftId:e.target.value})} required>
+                <option value="">Selecciona un turno</option>
+                {shifts.filter(s=>s.active).map(s=><option key={s.id} value={s.id}>{s.name} ({s.startTime}–{s.endTime})</option>)}
+              </select>
+            </label>
+            <label>Trabajador activo
+              <select value={assignmentForm.employeeId} onChange={e=>setAssignmentForm({...assignmentForm,employeeId:e.target.value})} required>
+                <option value="">Selecciona un trabajador</option>
+                {employees.filter(e=>e.status==='ACTIVE').map(e=><option key={e.id} value={e.id}>{e.firstName} {e.lastName} — {e.rut}</option>)}
+              </select>
+            </label>
+            <label>Válido desde
+              <input type="date" value={assignmentForm.validFrom} onChange={e=>setAssignmentForm({...assignmentForm,validFrom:e.target.value})} required/>
+            </label>
+            <label>Válido hasta (opcional)
+              <input type="date" min={assignmentForm.validFrom||undefined} value={assignmentForm.validTo} onChange={e=>setAssignmentForm({...assignmentForm,validTo:e.target.value})}/>
+            </label>
+            <button className="primary" disabled={shiftBusy||!shifts.some(s=>s.active)||!employees.some(e=>e.status==='ACTIVE')}>Asignar turno</button>
+          </form>
+          {(!shifts.some(s=>s.active)||!employees.some(e=>e.status==='ACTIVE'))&&<p className="muted">Para asignar, debe existir al menos un turno activo y un trabajador activo.</p>}
+        </section>
+
+        <section className="panel">
+          <div className="panel-head"><div><h3>Turnos registrados</h3><p>Horarios y trabajadores asignados según los datos del servidor.</p></div>
+            <button className="secondary" onClick={() => void loadShifts()} disabled={shiftBusy}><RefreshCw size={16}/> Actualizar</button>
+          </div>
+          <div className="table-wrap">
+            <table><thead><tr><th>Turno</th><th>Horario</th><th>Colación</th><th>Modalidad</th><th>Tolerancia</th><th>Asignaciones</th></tr></thead>
+              <tbody>{shifts.map(s=><tr key={s.id}>
+                <td><b>{s.name}</b><small className="subcell">{s.crossesMidnight?'Termina al día siguiente':'Mismo día'}</small></td>
+                <td>{s.startTime}–{s.endTime}</td>
+                <td>{s.breakStart&&s.breakEnd?`${s.breakStart}–${s.breakEnd}`:'No definida'}</td>
+                <td>{s.mode==='TWO_PUNCH'?'2 marcaciones':'4 marcaciones'}</td>
+                <td>{s.toleranceMinutes} min</td>
+                <td>
+                  {s.assignments?.length ?? 0}
+                  <div className="shift-actions">
+                    <button
+                      className="danger-button"
+                      type="button"
+                      onClick={() => void deleteShift(s)}
+                      disabled={shiftBusy}
+                      title="Solo se elimina si no tiene asignaciones ni sesiones históricas"
+                    >Eliminar turno</button>
+                  </div>
+                </td>
+              </tr>)}</tbody>
+            </table>
+            {!shifts.length&&<div className="empty">No hay turnos registrados.</div>}
+          </div>
+          {shifts.some(s=>(s.assignments?.length ?? 0)>0)&&<div className="table-wrap">
+            <table><thead><tr><th>Turno</th><th>Trabajador</th><th>Desde</th><th>Hasta</th><th>Acciones</th></tr></thead>
+              <tbody>{shifts.flatMap(s=>(s.assignments||[]).map(a=><tr key={a.id}>
+                <td>{s.name}</td>
+                <td>{a.employee.firstName} {a.employee.lastName} ({a.employee.rut})</td>
+                <td>{new Date(a.validFrom).toLocaleDateString('es-CL')}</td>
+                <td>{a.validTo?new Date(a.validTo).toLocaleDateString('es-CL'):'Sin fecha de término'}</td>
+                <td>
+                  <button
+                    className="danger-button"
+                    type="button"
+                    onClick={() => void removeShiftAssignment(s,a)}
+                    disabled={shiftBusy}
+                  >Quitar asignación</button>
+                </td>
+              </tr>))}</tbody>
+            </table>
+          </div>}
+        </section>
+      </>}
+
+      <footer>Asistencia · Base de desarrollo · Requiere revisión de seguridad y normativa antes de uso oficial.</footer>
+    </main>
+  </div>;
+}
+function Stat({icon,label,value,hint}:{icon:React.ReactNode,label:string,value:string,hint:string}) { return <div className="stat"><div className="stat-top"><span className="stat-icon">{icon}</span><span className="stat-hint">{hint}</span></div><p>{label}</p><strong>{value}</strong></div>; }
+function Records({rows}:{rows:RecordRow[]}) { const labels:any={ENTRY:'Entrada',BREAK_START:'Salida a colación',BREAK_END:'Regreso de colación',EXIT:'Salida final'}; const methods:any={FINGERPRINT:'Huella',PIN:'PIN',ADMIN_MANUAL:'Manual'}; return <div className="table-wrap"><table><thead><tr><th>Trabajador</th><th>Tipo</th><th>Fecha y hora</th><th>Método</th><th>Estado</th></tr></thead><tbody>{rows.map(r=><tr key={r.id}><td><b>{r.employee?.firstName} {r.employee?.lastName}</b><small className="subcell">{r.employee?.rut}</small></td><td>{labels[r.type]||r.type}</td><td>{fmt(r.occurredAt)}</td><td>{methods[r.method]||r.method}</td><td><span className="status">{r.status==='CONFIRMED'?'Confirmada':r.status}</span></td></tr>)}</tbody></table>{!rows.length&&<div className="empty">No hay marcaciones para mostrar.</div>}</div>; }
+function downloadCsv(rows:RecordRow[]) { const lines=[['Trabajador','RUT','Tipo','Fecha','Método','Estado'],...rows.map(r=>[`${r.employee?.firstName||''} ${r.employee?.lastName||''}`,r.employee?.rut||'',r.type,r.occurredAt,r.method,r.status])]; const csv=lines.map(line=>line.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(';')).join('\r\n'); const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'})); const a=document.createElement('a'); a.href=url; a.download='marcaciones.csv'; a.click(); URL.revokeObjectURL(url); }

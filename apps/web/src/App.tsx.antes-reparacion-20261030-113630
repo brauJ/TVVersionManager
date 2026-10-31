@@ -1,0 +1,1414 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Activity, BadgeCheck, CalendarClock, Download, Fingerprint, LayoutDashboard, LogIn, LogOut, Search, ShieldCheck, Users, Clock3, RefreshCw } from 'lucide-react';
+
+const API = '/api';
+type Employee = { id:string; rut:string; firstName:string; lastName:string; position?:string|null; status:string };
+type RecordRow = {
+  id:string; type:string; method:string; occurredAt:string;
+  employee:Employee; status:string; manualReason?:string|null;
+  creator?:{id:string;fullName:string;email:string}|null;
+  auditTrail?:{
+  action:string;
+  reason?:string|null;
+  createdAt:string;
+  user?:{id:string;fullName:string;email:string}|null;
+}[];
+};
+type UserRow = { id:string; email:string; fullName:string; status:'ACTIVE'|'DISABLED'; isSuperAdmin:boolean; createdAt:string; permissions:{code:string;description:string}[] };
+type DeviceEventRow = {
+  id: string;
+  eventId: string;
+  deviceId: string;
+  receivedAt: string;
+  result: string;
+  details?: string | null;
+};
+type PermissionRow = { id:string; code:string; description:string };
+type Department = { id:string; name:string; active:boolean; _count?:{employees:number} };
+type Branch = { id:string; name:string; address?:string|null; active:boolean; _count?:{employees:number} };
+type Shift = {
+  id:string; name:string; startTime:string; endTime:string;
+  breakStart?:string|null; breakEnd?:string|null;
+  toleranceMinutes:number; mode:'TWO_PUNCH'|'FOUR_PUNCH';
+  crossesMidnight:boolean; active:boolean;
+  assignments?:{
+    id:string; validFrom:string; validTo?:string|null;
+    employee:{id:string;rut:string;firstName:string;lastName:string;status:string}
+  }[];
+};
+const fmt = (d:string) => new Date(d).toLocaleString('es-CL', { dateStyle:'short', timeStyle:'medium' });
+
+type AgentStatus = {
+  status: 'ready' | 'starting' | 'error';
+  readerConnected: boolean;
+  registeredTemplates: number;
+  pendingEvents: number;
+  lastEvent?: {
+    employeeName: string;
+    occurredAt: string;
+    result: 'ACCEPTED' | 'PENDING_REVIEW' | 'QUEUED' | 'REJECTED';
+    message?: string;
+  } | null;
+};
+
+const LOCAL_AGENT_URL = 'http://127.0.0.1:17865';
+
+function AttendanceTerminal() {
+  const [agent, setAgent] = useState<AgentStatus | null>(null);
+  const [connectionError, setConnectionError] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const checkAgent = async () => {
+      try {
+        const response = await fetch(`${LOCAL_AGENT_URL}/status`, {
+          method: 'GET',
+          cache: 'no-store',
+          mode: 'cors'
+        });
+
+        if (!response.ok) {
+          throw new Error('Agente no disponible');
+        }
+
+        const data: AgentStatus = await response.json();
+
+        if (active) {
+          setAgent(data);
+          setConnectionError(false);
+        }
+      } catch {
+        if (active) {
+          setAgent(null);
+          setConnectionError(true);
+        }
+      }
+    };
+
+    void checkAgent();
+    const timer = window.setInterval(() => void checkAgent(), 2000);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const connected = agent?.readerConnected === true;
+  const lastEvent = agent?.lastEvent;
+
+  const resultLabel = (result?: string) => {
+    switch (result) {
+      case 'ACCEPTED':
+        return 'Marcación registrada correctamente';
+      case 'PENDING_REVIEW':
+        return 'Marcación recibida, pendiente de revisión';
+      case 'QUEUED':
+        return 'Marcación guardada; pendiente de envío';
+      case 'REJECTED':
+        return 'Marcación rechazada por el servidor';
+      default:
+        return 'Procesando marcación';
+    }
+  };
+
+  return (
+    <main className="terminal-shell">
+      <section className="terminal-card">
+        <div className="terminal-mark">
+          <Fingerprint size={42} />
+        </div>
+
+        <p className="terminal-eyebrow">CONTROL DE ASISTENCIA</p>
+        <h1>Marcación de trabajadores</h1>
+
+        <div className="terminal-status">
+          <span
+            className="terminal-dot"
+            style={{
+              background: connected ? '#16a34a' : '#dc2626'
+            }}
+          />
+          <strong>
+            {!agent
+              ? 'Conectando con el terminal...'
+              : connected
+                ? 'Esperando huella'
+                : 'Lector no conectado'}
+          </strong>
+        </div>
+
+        <p className="terminal-message">
+          {connected
+            ? 'Coloca tu dedo en el lector para registrar tu asistencia.'
+            : 'Verifica que el lector ZKTeco esté conectado y que AsistenciaAgent esté ejecutándose.'}
+        </p>
+
+        {connectionError && (
+          <p className="terminal-warning">
+            No se pudo establecer comunicación con el servicio local de Windows.
+          </p>
+        )}
+
+        {agent && (
+          <div style={{ marginTop: 24 }}>
+            <p>
+              <strong>Plantillas registradas:</strong>{' '}
+              {agent.registeredTemplates}
+            </p>
+            <p>
+              <strong>Marcaciones pendientes:</strong>{' '}
+              {agent.pendingEvents}
+            </p>
+          </div>
+        )}
+
+        {lastEvent && (
+          <div className="panel" style={{ marginTop: 24, textAlign: 'left' }}>
+            <h3>Última marcación</h3>
+            <p><strong>Trabajador:</strong> {lastEvent.employeeName}</p>
+            <p>
+              <strong>Fecha:</strong>{' '}
+              {new Date(lastEvent.occurredAt).toLocaleString('es-CL')}
+            </p>
+            <p><strong>Resultado:</strong> {resultLabel(lastEvent.result)}</p>
+            {lastEvent.message && <p>{lastEvent.message}</p>}
+          </div>
+        )}
+      </section>
+    </main>
+  );
+}
+
+export default function App() {
+  if (window.location.pathname.replace(/\/$/, '') === '/marcacion') {
+    return <AttendanceTerminal />;
+  }
+
+  const [token,setToken] = useState(localStorage.getItem('attendance_token') || '');
+  const [email,setEmail] = useState('');
+  const [password,setPassword] = useState('');
+  const [error,setError] = useState('');
+  const [tab,setTab] = useState<'overview'|'employees'|'attendance'|'deviceEvents'|'users'|'organization'|'shifts'>('overview');
+  const [employees,setEmployees] = useState<Employee[]>([]);
+  const [records,setRecords] = useState<RecordRow[]>([]);
+  const [deviceEvents,setDeviceEvents] = useState<DeviceEventRow[]>([]);
+  const [deviceEventsBusy,setDeviceEventsBusy] = useState(false);
+  const [users,setUsers] = useState<UserRow[]>([]);
+  const [permissionCatalog,setPermissionCatalog] = useState<PermissionRow[]>([]);
+  const [editingPermissionsUser,setEditingPermissionsUser] = useState<UserRow|null>(null);
+  const [editingUser,setEditingUser] = useState<UserRow|null>(null);
+  const [userEditForm,setUserEditForm] = useState({fullName:'',email:'',password:'',confirmPassword:''});
+  const [selectedPermissionCodes,setSelectedPermissionCodes] = useState<string[]>([]);
+  const [departments,setDepartments] = useState<Department[]>([]);
+  const [branches,setBranches] = useState<Branch[]>([]);
+  const [shifts,setShifts] = useState<Shift[]>([]);
+  const [organizationBusy,setOrganizationBusy] = useState(false);
+  const [shiftBusy,setShiftBusy] = useState(false);
+  const [departmentName,setDepartmentName] = useState('');
+  const [branchForm,setBranchForm] = useState({name:'',address:''});
+  const [shiftForm,setShiftForm] = useState({
+    name:'',startTime:'09:00',endTime:'18:00',
+    breakStart:'13:00',breakEnd:'14:00',
+    toleranceMinutes:'5',mode:'FOUR_PUNCH' as 'TWO_PUNCH'|'FOUR_PUNCH',
+    crossesMidnight:false
+  });
+  const [assignmentForm,setAssignmentForm] = useState({
+    shiftId:'',employeeId:'',validFrom:'',validTo:''
+  });
+  const [userActionBusy,setUserActionBusy] = useState('');
+  const [query,setQuery] = useState('');
+  const [busy,setBusy] = useState(false);
+  const [employeeForm,setEmployeeForm] = useState({rut:'',firstName:'',lastName:'',position:''});
+  const [editingEmployee,setEditingEmployee] = useState<Employee | null>(null);
+  const [employeeStatusFilter,setEmployeeStatusFilter] = useState('ALL');
+  const [notice,setNotice] = useState('');
+  const [attendanceFrom,setAttendanceFrom] = useState('');
+  const [attendanceTo,setAttendanceTo] = useState('');
+  const [attendanceStatus,setAttendanceStatus] = useState('ALL');
+  const [attendanceEmployee,setAttendanceEmployee] = useState('ALL');
+  const [reviewBusy,setReviewBusy] = useState('');
+
+  async function api(path:string, init:RequestInit={}) {
+    const res = await fetch(`${API}${path}`, { ...init, headers: { 'Content-Type':'application/json', ...(token ? { Authorization:`Bearer ${token}` } : {}), ...(init.headers || {}) } });
+    if (!res.ok) throw new Error((await res.text()).slice(0,300) || `HTTP ${res.status}`);
+    return res.json();
+  }
+  async function login(e:React.FormEvent) {
+    e.preventDefault(); setError('');
+    try {
+      const data = await api('/auth/login',{method:'POST',body:JSON.stringify({email,password})});
+      localStorage.setItem('attendance_token',data.accessToken); setToken(data.accessToken);
+    } catch { setError('No se pudo iniciar sesión. Verifica las credenciales y que la API esté disponible.'); }
+  }
+  async function load() {
+    if (!token) return;
+    setBusy(true); setError('');
+    try {
+      const employeeParams = new URLSearchParams({ q: query });
+      if (employeeStatusFilter !== 'ALL') employeeParams.set('status', employeeStatusFilter);
+      const [e,r] = await Promise.all([api(`/employees?${employeeParams.toString()}`),api('/attendance')]);
+      setEmployees(e); setRecords(r);
+    } catch (err:any) { setError(`No se pudieron cargar los datos. ${err.message || ''}`); }
+    finally { setBusy(false); }
+  }
+
+  async function loadDeviceEvents() {
+  if (!token) return;
+  setDeviceEventsBusy(true);
+  setError('');
+  try {
+    const data = await api('/device/events');
+    setDeviceEvents(data);
+  } catch (err: any) {
+    setError(`No se pudieron cargar los eventos del lector. ${err.message || ''}`);
+  } finally {
+    setDeviceEventsBusy(false);
+  }
+}
+  async function loadUsers() {
+    if (!token) return;
+    setError('');
+    try {
+      const [data, catalog] = await Promise.all([
+        api('/users'),
+        api('/users/permissions')
+      ]);
+      setUsers(data);
+      setPermissionCatalog(catalog);
+    } catch (err:any) {
+      setError(`No se pudieron cargar los usuarios. ${err.message || ''}`);
+    }
+  }
+
+  function beginEditUser(user:UserRow) {
+    setEditingUser(user);
+    setUserEditForm({
+      fullName:user.fullName,
+      email:user.email,
+      password:'',
+      confirmPassword:''
+    });
+    setEditingPermissionsUser(null);
+    setError('');
+    setNotice('');
+  }
+
+  async function saveUserEdit(e:React.FormEvent) {
+    e.preventDefault();
+    const user = editingUser;
+    if (!user) return;
+
+    const fullName = userEditForm.fullName.trim();
+    const email = userEditForm.email.trim();
+
+    if (fullName.length < 2) {
+      setError('El nombre debe tener al menos 2 caracteres.');
+      return;
+    }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError('Ingresa un correo electrónico válido.');
+      return;
+    }
+    if (userEditForm.password || userEditForm.confirmPassword) {
+      if (userEditForm.password.length < 12) {
+        setError('La nueva contraseña debe tener al menos 12 caracteres.');
+        return;
+      }
+      if (userEditForm.password !== userEditForm.confirmPassword) {
+        setError('La nueva contraseña y su confirmación no coinciden.');
+        return;
+      }
+    }
+
+    if (!window.confirm(`¿Guardar los cambios de la cuenta ${user.email}?`)) return;
+
+    const payload:{fullName:string;email:string;password?:string} = {fullName,email};
+    if (userEditForm.password) payload.password = userEditForm.password;
+
+    setUserActionBusy(user.id);
+    setError('');
+    setNotice('');
+
+    try {
+      await api(`/users/${encodeURIComponent(user.id)}`, {
+        method:'PATCH',
+        body:JSON.stringify(payload)
+      });
+      setNotice(
+        userEditForm.password
+          ? `Datos y contraseña actualizados para ${email}.`
+          : `Datos actualizados para ${email}. La contraseña no se modificó.`
+      );
+      setEditingUser(null);
+      setUserEditForm({fullName:'',email:'',password:'',confirmPassword:''});
+      await loadUsers();
+    } catch (err:any) {
+      setError(`No se pudo actualizar el usuario. ${err.message || ''}`);
+    } finally {
+      setUserActionBusy('');
+    }
+  }
+
+  function beginEditUserPermissions(user:UserRow) {
+    if (user.isSuperAdmin) return;
+    setEditingPermissionsUser(user);
+    setSelectedPermissionCodes(user.permissions.map(permission => permission.code));
+    setError('');
+    setNotice('');
+  }
+
+  async function saveUserPermissions() {
+    const user = editingPermissionsUser;
+    if (!user) return;
+
+    if (!window.confirm(`¿Guardar los permisos seleccionados para ${user.fullName}?`)) return;
+
+    setUserActionBusy(user.id);
+    setError('');
+    setNotice('');
+
+    try {
+      await api(`/users/${encodeURIComponent(user.id)}/permissions`, {
+        method:'PATCH',
+        body:JSON.stringify({permissionCodes:selectedPermissionCodes})
+      });
+      setNotice(`Permisos actualizados para ${user.email}. Si tenía una sesión abierta, debe cerrar sesión y volver a entrar.`);
+      setEditingPermissionsUser(null);
+      await loadUsers();
+    } catch (err:any) {
+      setError(`No se pudieron guardar los permisos. ${err.message || ''}`);
+    } finally {
+      setUserActionBusy('');
+    }
+  }
+
+  async function toggleUserStatus(user:UserRow) {
+    const activating = user.status === 'DISABLED';
+    const nextStatus = activating ? 'ACTIVE' : 'DISABLED';
+    const action = activating ? 'activar' : 'desactivar';
+
+    if (!window.confirm(`¿Seguro que deseas ${action} la cuenta de ${user.fullName} (${user.email})?`)) return;
+
+    setUserActionBusy(user.id);
+    setError('');
+    setNotice('');
+
+    try {
+      await api(`/users/${encodeURIComponent(user.id)}/status`, {
+        method:'PATCH',
+        body:JSON.stringify({status:nextStatus})
+      });
+      setNotice(`Cuenta ${activating ? 'activada' : 'desactivada'} correctamente: ${user.email}`);
+      await loadUsers();
+    } catch (err:any) {
+      setError(`No se pudo cambiar el estado de la cuenta. ${err.message || ''}`);
+    } finally {
+      setUserActionBusy('');
+    }
+  }
+
+  async function loadOrganization() {
+    if (!token) return;
+    setOrganizationBusy(true);
+    try {
+      const [d,b] = await Promise.all([
+        api('/departments'),
+        api('/branches')
+      ]);
+      setDepartments(d);
+      setBranches(b);
+    } catch (err:any) {
+      setError(`No se pudo cargar la organización. ${err.message || ''}`);
+    } finally {
+      setOrganizationBusy(false);
+    }
+  }
+
+  async function loadShifts() {
+    if (!token) return;
+    setShiftBusy(true);
+    try {
+      const [s,e] = await Promise.all([
+        api('/shifts'),
+        api('/employees?status=ACTIVE')
+      ]);
+      setShifts(s);
+      setEmployees(e);
+      setAssignmentForm(old => ({
+        ...old,
+        shiftId: old.shiftId || (s[0]?.id ?? ''),
+        employeeId: old.employeeId || (e[0]?.id ?? '')
+      }));
+    } catch (err:any) {
+      setError(`No se pudieron cargar los turnos. ${err.message || ''}`);
+    } finally {
+      setShiftBusy(false);
+    }
+  }
+
+  async function createDepartment(e:React.FormEvent) {
+    e.preventDefault();
+    setNotice('');
+    setError('');
+    try {
+      await api('/departments', {
+        method:'POST',
+        body:JSON.stringify({name:departmentName.trim()})
+      });
+      setDepartmentName('');
+      setNotice('Departamento creado correctamente.');
+      await loadOrganization();
+    } catch (err:any) {
+      setError(`No se pudo crear el departamento. ${err.message || ''}`);
+    }
+  }
+
+  async function createBranch(e:React.FormEvent) {
+    e.preventDefault();
+    setNotice('');
+    setError('');
+    try {
+      await api('/branches', {
+        method:'POST',
+        body:JSON.stringify({
+          name:branchForm.name.trim(),
+          address:branchForm.address.trim() || undefined
+        })
+      });
+      setBranchForm({name:'',address:''});
+      setNotice('Sucursal creada correctamente.');
+      await loadOrganization();
+    } catch (err:any) {
+      setError(`No se pudo crear la sucursal. ${err.message || ''}`);
+    }
+  }
+
+  async function editDepartment(d:Department) {
+    const name = window.prompt('Nombre del departamento:', d.name);
+    if (name === null) return;
+    if (name.trim().length < 2) {
+      setError('El nombre del departamento debe tener al menos 2 caracteres.');
+      return;
+    }
+    setError('');
+    setNotice('');
+    try {
+      await api(`/departments/${encodeURIComponent(d.id)}`, {
+        method:'PATCH',
+        body:JSON.stringify({name:name.trim()})
+      });
+      setNotice('Departamento actualizado.');
+      await loadOrganization();
+    } catch (err:any) {
+      setError(`No se pudo actualizar el departamento. ${err.message || ''}`);
+    }
+  }
+
+  async function toggleDepartment(d:Department) {
+    const active = !d.active;
+    const message = active
+      ? `¿Reactivar el departamento "${d.name}"?`
+      : `¿Desactivar el departamento "${d.name}"? Los trabajadores e historiales se conservarán.`;
+    if (!window.confirm(message)) return;
+    setError('');
+    setNotice('');
+    try {
+      await api(`/departments/${encodeURIComponent(d.id)}/status`, {
+        method:'PATCH',
+        body:JSON.stringify({active})
+      });
+      setNotice(active ? 'Departamento reactivado.' : 'Departamento desactivado.');
+      await loadOrganization();
+    } catch (err:any) {
+      setError(`No se pudo cambiar el estado del departamento. ${err.message || ''}`);
+    }
+  }
+
+  async function editBranch(b:Branch) {
+    const name = window.prompt('Nombre de la sucursal:', b.name);
+    if (name === null) return;
+    if (name.trim().length < 2) {
+      setError('El nombre de la sucursal debe tener al menos 2 caracteres.');
+      return;
+    }
+    const address = window.prompt('Dirección de la sucursal (dejar vacío si no corresponde):', b.address || '');
+    if (address === null) return;
+    setError('');
+    setNotice('');
+    try {
+      await api(`/branches/${encodeURIComponent(b.id)}`, {
+        method:'PATCH',
+        body:JSON.stringify({name:name.trim(), address:address.trim() || null})
+      });
+      setNotice('Sucursal actualizada.');
+      await loadOrganization();
+    } catch (err:any) {
+      setError(`No se pudo actualizar la sucursal. ${err.message || ''}`);
+    }
+  }
+
+  async function toggleBranch(b:Branch) {
+    const active = !b.active;
+    const message = active
+      ? `¿Reactivar la sucursal "${b.name}"?`
+      : `¿Desactivar la sucursal "${b.name}"? Los trabajadores e historiales se conservarán.`;
+    if (!window.confirm(message)) return;
+    setError('');
+    setNotice('');
+    try {
+      await api(`/branches/${encodeURIComponent(b.id)}/status`, {
+        method:'PATCH',
+        body:JSON.stringify({active})
+      });
+      setNotice(active ? 'Sucursal reactivada.' : 'Sucursal desactivada.');
+      await loadOrganization();
+    } catch (err:any) {
+      setError(`No se pudo cambiar el estado de la sucursal. ${err.message || ''}`);
+    }
+  }
+
+  async function createShift(e:React.FormEvent) {
+    e.preventDefault();
+    setNotice('');
+    setError('');
+    try {
+      const payload:any = {
+        name:shiftForm.name.trim(),
+        startTime:shiftForm.startTime,
+        endTime:shiftForm.endTime,
+        toleranceMinutes:Number(shiftForm.toleranceMinutes || 0),
+        mode:shiftForm.mode,
+        crossesMidnight:shiftForm.crossesMidnight
+      };
+      if (shiftForm.mode === 'FOUR_PUNCH') {
+        payload.breakStart = shiftForm.breakStart;
+        payload.breakEnd = shiftForm.breakEnd;
+      }
+      await api('/shifts', {
+        method:'POST',
+        body:JSON.stringify(payload)
+      });
+      setShiftForm(old => ({...old,name:''}));
+      setNotice('Turno creado correctamente.');
+      await loadShifts();
+    } catch (err:any) {
+      setError(`No se pudo crear el turno. ${err.message || ''}`);
+    }
+  }
+
+
+  async function setShiftActive(shift: Shift) {
+    const nextActive = !shift.active;
+    const action = nextActive ? 'reactivar' : 'desactivar';
+
+    const ok = window.confirm(
+      `¿Deseas ${action} el turno "${shift.name}"?\\n\\n` +
+      'El historial del turno y sus asignaciones se conservarán.'
+    );
+    if (!ok) return;
+
+    setNotice('');
+    setError('');
+    try {
+      await api(`/shifts/${encodeURIComponent(shift.id)}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ active: nextActive })
+      });
+      setNotice(
+        nextActive
+          ? `Turno "${shift.name}" reactivado.`
+          : `Turno "${shift.name}" desactivado.`
+      );
+      await loadShifts();
+    } catch (err: any) {
+      setError(`No se pudo cambiar el estado del turno. ${err.message || ''}`);
+    }
+  }
+
+  async function closeShiftAssignment(
+    shift: Shift,
+    assignment: NonNullable<Shift['assignments']>[number]
+  ) {
+    const employeeName =
+      `${assignment.employee.firstName} ${assignment.employee.lastName}`;
+
+    const currentDate = new Date();
+    const defaultDate = [
+      currentDate.getFullYear(),
+      String(currentDate.getMonth() + 1).padStart(2, '0'),
+      String(currentDate.getDate()).padStart(2, '0')
+    ].join('-');
+
+    const validTo = window.prompt(
+      `Fecha de término para ${employeeName} en el turno "${shift.name}" (AAAA-MM-DD):`,
+      assignment.validTo
+        ? assignment.validTo.slice(0, 10)
+        : defaultDate
+    );
+
+    if (validTo === null) return;
+
+    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(validTo)) {
+      setError('Introduce la fecha en formato AAAA-MM-DD.');
+      return;
+    }
+
+    const parsedDate = new Date(`${validTo}T12:00:00`);
+    if (
+      Number.isNaN(parsedDate.getTime()) ||
+      parsedDate.toISOString().slice(0, 10) !== validTo
+    ) {
+      setError('La fecha de término no es válida.');
+      return;
+    }
+
+    setNotice('');
+    setError('');
+    try {
+      await api(
+        `/shifts/${encodeURIComponent(shift.id)}/assignments/${encodeURIComponent(assignment.id)}/close`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ validTo: `${validTo}T12:00:00.000Z` })
+        }
+      );
+      setNotice(
+        `Asignación de ${employeeName} actualizada. Se conserva su historial.`
+      );
+      await loadShifts();
+    } catch (err: any) {
+      setError(`No se pudo cerrar la asignación. ${err.message || ''}`);
+    }
+  }
+
+  async function assignShift(e:React.FormEvent) {
+    e.preventDefault();
+    setNotice('');
+    setError('');
+    if (!assignmentForm.shiftId || !assignmentForm.employeeId || !assignmentForm.validFrom) {
+      setError('Selecciona un turno, un trabajador y la fecha inicial.');
+      return;
+    }
+    try {
+      await api(`/shifts/${encodeURIComponent(assignmentForm.shiftId)}/assignments`, {
+        method:'POST',
+        body:JSON.stringify({
+          employeeId:assignmentForm.employeeId,
+          validFrom:assignmentForm.validFrom,
+          ...(assignmentForm.validTo ? {validTo:assignmentForm.validTo} : {})
+        })
+      });
+      setNotice('Turno asignado correctamente.');
+      setAssignmentForm(old => ({...old,validTo:''}));
+      await loadShifts();
+    } catch (err:any) {
+      setError(`No se pudo asignar el turno. ${err.message || ''}`);
+    }
+  }
+
+  useEffect(()=>{
+    if (!token) return;
+    if (tab === 'users') void loadUsers();
+    else if (tab === 'deviceEvents') void loadDeviceEvents();
+    else if (tab === 'organization') void loadOrganization();
+    else if (tab === 'shifts') void loadShifts();
+    else void load();
+  },[token,tab]);
+  const todayCount = useMemo(()=>records.filter(r=>new Date(r.occurredAt).toDateString()===new Date().toDateString()).length,[records]);
+  async function createEmployee(e:React.FormEvent) {
+    e.preventDefault(); setNotice('');
+    try {
+      await api('/employees',{method:'POST',body:JSON.stringify(employeeForm)});
+      setEmployeeForm({rut:'',firstName:'',lastName:'',position:''}); setNotice('Trabajador creado.'); await load();
+    } catch(err:any) { setNotice(`No se pudo crear: ${err.message}`); }
+  }
+
+  function startEmployeeEdit(employee: Employee) {
+    setEditingEmployee(employee);
+    setEmployeeForm({
+      rut: employee.rut,
+      firstName: employee.firstName,
+      lastName: employee.lastName,
+      position: employee.position || ''
+    });
+    setNotice('');
+    setError('');
+  }
+
+  async function saveEmployeeEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingEmployee) return;
+    setNotice('');
+    setError('');
+
+    try {
+      await api(`/employees/${encodeURIComponent(editingEmployee.id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify(employeeForm)
+      });
+      setNotice('Trabajador actualizado correctamente.');
+      setEditingEmployee(null);
+      setEmployeeForm({rut:'',firstName:'',lastName:'',position:''});
+      await load();
+    } catch (err: any) {
+      setError(`No se pudo actualizar el trabajador. ${err.message || ''}`);
+    }
+  }
+
+  async function toggleEmployeeStatus(employee: Employee) {
+    const activating = employee.status !== 'ACTIVE';
+    const action = activating ? 'reactivar' : 'desactivar';
+
+    if (!window.confirm(
+      `¿Deseas ${action} a ${employee.firstName} ${employee.lastName}?\n\nSu historial de asistencia se conservará.`
+    )) return;
+
+    setError('');
+    setNotice('');
+
+    try {
+      await api(
+        `/employees/${encodeURIComponent(employee.id)}/${activating ? 'activate' : 'deactivate'}`,
+        { method: 'POST' }
+      );
+      setNotice(`Trabajador ${activating ? 'reactivado' : 'desactivado'} correctamente.`);
+      await load();
+    } catch (err: any) {
+      setError(`No se pudo ${action} al trabajador. ${err.message || ''}`);
+    }
+  }
+
+  const filteredRecords = useMemo(() => records.filter(record => {
+    if (attendanceStatus !== 'ALL' && record.status !== attendanceStatus) return false;
+    if (attendanceEmployee !== 'ALL' && record.employee?.id !== attendanceEmployee) return false;
+
+    const timestamp = new Date(record.occurredAt).getTime();
+    if (attendanceFrom) {
+      const start = new Date(`${attendanceFrom}T00:00:00`).getTime();
+      if (timestamp < start) return false;
+    }
+    if (attendanceTo) {
+      const end = new Date(`${attendanceTo}T23:59:59.999`).getTime();
+      if (timestamp > end) return false;
+    }
+    return true;
+  }), [records, attendanceStatus, attendanceEmployee, attendanceFrom, attendanceTo]);
+
+  
+  async function reviewAttendance(record: RecordRow, status: 'CONFIRMED'|'VOIDED') {
+    if (record.status !== 'PENDING_REVIEW') {
+      setError('Solo se pueden revisar marcaciones pendientes.');
+      return;
+    }
+
+    const labels: Record<string, string> = {
+      ENTRY: 'Entrada',
+      BREAK_START: 'Salida a colación',
+      BREAK_END: 'Regreso de colación',
+      EXIT: 'Salida final'
+    };
+
+    let selectedType = record.type;
+
+    if (status === 'CONFIRMED') {
+      const options = [
+        'ENTRY',
+        'BREAK_START',
+        'BREAK_END',
+        'EXIT'
+      ];
+
+      const selection = window.prompt(
+        `Selecciona el tipo correcto de marcación:\n\n` +
+        `1. Entrada\n` +
+        `2. Salida a colación\n` +
+        `3. Regreso de colación\n` +
+        `4. Salida final\n\n` +
+        `Tipo actual: ${labels[record.type] || record.type}\n\n` +
+        `Escribe un número del 1 al 4:`,
+        String(options.indexOf(record.type) + 1)
+      );
+
+      if (selection === null) return;
+
+      const index = Number(selection) - 1;
+
+      if (!Number.isInteger(index) || index < 0 || index >= options.length) {
+        setError('Selecciona un tipo válido entre 1 y 4.');
+        return;
+      }
+
+      selectedType = options[index];
+    }
+
+    const action = status === 'CONFIRMED' ? 'confirmar' : 'anular';
+
+    const reason = window.prompt(
+      `Motivo obligatorio para ${action} la marcación de ` +
+      `${record.employee?.firstName || ''} ${record.employee?.lastName || ''}. ` +
+      `Escribe al menos 8 caracteres:`
+    );
+
+    if (reason === null) return;
+
+    if (reason.trim().length < 8) {
+      setError('El motivo debe tener al menos 8 caracteres.');
+      return;
+    }
+
+    if (
+      status === 'VOIDED' &&
+      !window.confirm('¿Confirmas la anulación? Esta acción quedará registrada en la auditoría.')
+    ) return;
+
+    setReviewBusy(record.id);
+    setError('');
+    setNotice('');
+
+    try {
+      await api(`/attendance/${encodeURIComponent(record.id)}/review`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status,
+          reason: reason.trim(),
+          type: selectedType
+        })
+      });
+
+      setNotice(
+        `Marcación ${status === 'CONFIRMED' ? 'confirmada' : 'anulada'} correctamente.`
+      );
+
+      await load();
+    } catch (err: any) {
+      setError(`No se pudo ${action} la marcación. ${err.message || ''}`);
+    } finally {
+      setReviewBusy('');
+    }
+  }
+
+
+    const action = status === 'CONFIRMED' ? 'confirmar' : 'anular';
+    const reason = window.prompt(
+      `Motivo obligatorio para ${action} la marcación de ${record.employee?.firstName || ''} ${record.employee?.lastName || ''}. Escribe al menos 8 caracteres:`
+    );
+    if (reason === null) return;
+    if (reason.trim().length < 8) {
+      setError('El motivo debe tener al menos 8 caracteres.');
+      return;
+    }
+
+    if (status === 'VOIDED' && !window.confirm('¿Confirmas la anulación? Esta acción quedará registrada en la auditoría.')) return;
+
+    setReviewBusy(record.id);
+    setError('');
+    setNotice('');
+    try {
+      await api(`/attendance/${encodeURIComponent(record.id)}/review`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status, reason: reason.trim() })
+      });
+      setNotice(`Marcación ${status === 'CONFIRMED' ? 'confirmada' : 'anulada'} correctamente.`);
+      await load();
+    } catch (err:any) {
+      setError(`No se pudo ${action} la marcación. ${err.message || ''}`);
+    } finally {
+      setReviewBusy('');
+    }
+  }
+
+  function logout() { localStorage.removeItem('attendance_token'); setToken(''); setEmployees([]); setRecords([]); }
+
+  if (!token) return <main className="login-shell"><section className="login-card"><div className="brand-mark"><Fingerprint size={28}/></div><p className="eyebrow">CONTROL LABORAL</p><h1>Asistencia</h1><p className="muted">Acceso al panel administrativo</p><form onSubmit={login} className="stack"><label>Correo electrónico<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required autoComplete="username"/></label><label>Contraseña<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required minLength={12} autoComplete="current-password"/></label>{error&&<p className="error">{error}</p>}<button className="primary"><LogIn size={17}/> Iniciar sesión</button></form><p className="footnote">Conecta la API y configura tu administrador mediante el seed de Prisma.</p></section></main>;
+
+  return <div className="app-shell">
+    <aside className="sidebar"><div className="brand"><div className="brand-mark"><Fingerprint size={23}/></div><div><strong>Asistencia</strong><small>GESTIÓN LABORAL</small></div></div><div className="nav-label">MENÚ PRINCIPAL</div>
+      <button className={tab==='overview'?'nav active':'nav'} onClick={()=>setTab('overview')}><LayoutDashboard size={18}/> Resumen</button>
+      <button className={tab==='employees'?'nav active':'nav'} onClick={()=>setTab('employees')}><Users size={18}/> Trabajadores</button>
+      <button className={tab==='attendance'?'nav active':'nav'} onClick={()=>setTab('attendance')}><CalendarClock size={18}/> Marcaciones</button>
+      <button className={tab==='deviceEvents'?'nav active':'nav'} onClick={()=>setTab('deviceEvents')}><Fingerprint size={18}/> Eventos del lector</button>
+      <button className={tab==='users'?'nav active':'nav'} onClick={()=>setTab('users')}><Users size={18}/> Usuarios</button>
+      <button className={tab==='organization'?'nav active':'nav'} onClick={()=>setTab('organization')}><LayoutDashboard size={18}/> Organización</button>
+      <button className={tab==='shifts'?'nav active':'nav'} onClick={()=>setTab('shifts')}><Clock3 size={18}/> Turnos</button>
+      <div className="sidebar-bottom"><div className="secure-note"><ShieldCheck size={18}/><span><b>Panel protegido</b><small>Revisa los permisos del servidor antes de producción.</small></span></div><button className="nav" onClick={logout}><LogOut size={18}/> Cerrar sesión</button></div>
+    </aside>
+    <main className="main">
+      <header className="topbar"><div><p className="eyebrow">SISTEMA DE ASISTENCIA</p><h1>{tab==='overview'?'Resumen general':tab==='employees'?'Trabajadores':tab==='attendance'?'Marcaciones':tab==='deviceEvents'?'Eventos del lector':tab==='users'?'Usuarios':tab==='organization'?'Organización':'Turnos'}</h1></div><div className="top-actions"><span className="server-pill"><span className="dot"/> API conectada</span><button className="icon-button" onClick={()=>{
+        if(tab==='users') void loadUsers();
+        else if(tab==='deviceEvents') void loadDeviceEvents();
+        else if(tab==='organization') void loadOrganization();
+        else if(tab==='shifts') void loadShifts();
+        else void load();
+      }} title="Actualizar"><RefreshCw size={17}/></button></div></header>
+      {error&&<div className="alert error">{error}</div>}{notice&&<div className="alert">{notice}</div>}
+      {tab==='overview'&&<><section className="welcome"><div><p className="eyebrow light">PANEL DE CONTROL</p><h2>Todo en orden, a primera vista.</h2><p>Consulta la actividad de asistencia y administra la información de tu equipo.</p></div><div className="welcome-icon"><Activity size={38}/></div></section>
+        <section className="stat-grid"><Stat icon={<Users/>} label="Trabajadores cargados" value={String(employees.length)} hint="Registros disponibles"/><Stat icon={<Clock3/>} label="Marcaciones de hoy" value={String(todayCount)} hint="Según hora local del navegador"/><Stat icon={<BadgeCheck/>} label="Últimos registros" value={String(records.length)} hint="Máximo 1.000 registros consultados"/></section>
+        <section className="panel"><div className="panel-head"><div><h3>Marcaciones recientes</h3><p>Eventos recibidos desde la base de datos</p></div><button className="secondary" onClick={()=>setTab('attendance')}>Ver marcaciones</button></div><Records rows={records.slice(0,8)}/></section></>}
+      {tab==='employees'&&<><section className="panel"><div className="panel-head"><div><h3>Directorio de trabajadores</h3><p>Consulta trabajadores guardados en MySQL</p></div><form className="search" onSubmit={e=>{e.preventDefault();void load();}}><Search size={17}/><input placeholder="Buscar nombre o RUT" value={query} onChange={e=>setQuery(e.target.value)}/><select aria-label="Filtrar por estado" value={employeeStatusFilter} onChange={e=>setEmployeeStatusFilter(e.target.value)}><option value="ALL">Todos</option><option value="ACTIVE">Activos</option><option value="INACTIVE">Inactivos</option></select><button className="secondary">Buscar</button></form></div><div className="table-wrap"><table><thead><tr><th>Trabajador</th><th>RUT</th><th>Cargo</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>{employees.map(e=><tr key={e.id}><td><b>{e.firstName} {e.lastName}</b></td><td>{e.rut}</td><td>{e.position||'—'}</td><td><span className="status">{e.status==='ACTIVE'?'Activo':'Inactivo'}</span></td><td><div className="action-buttons"><button type="button" className="secondary" onClick={()=>startEmployeeEdit(e)}>Editar</button><button type="button" className="secondary" onClick={()=>void toggleEmployeeStatus(e)}>{e.status==='ACTIVE'?'Desactivar':'Reactivar'}</button></div></td></tr>)}</tbody></table>{!employees.length&&<div className="empty">No hay trabajadores para mostrar.</div>}</div></section>
+        <section className="panel"><div className="panel-head"><div><h3>{editingEmployee ? 'Editar trabajador' : 'Agregar trabajador'}</h3><p>{editingEmployee ? 'Modifica los datos del trabajador seleccionado' : 'Los datos se guardarán en la base de datos'}</p></div></div><form className="employee-form" onSubmit={editingEmployee ? saveEmployeeEdit : createEmployee}><label>RUT<input value={employeeForm.rut} onChange={e=>setEmployeeForm({...employeeForm,rut:e.target.value})} required minLength={3}/></label><label>Nombre<input value={employeeForm.firstName} onChange={e=>setEmployeeForm({...employeeForm,firstName:e.target.value})} required/></label><label>Apellidos<input value={employeeForm.lastName} onChange={e=>setEmployeeForm({...employeeForm,lastName:e.target.value})} required/></label><label>Cargo<input value={employeeForm.position} onChange={e=>setEmployeeForm({...employeeForm,position:e.target.value})}/></label><div className="action-buttons"><button className="primary" type="submit">{editingEmployee ? 'Guardar cambios' : 'Guardar trabajador'}</button>{editingEmployee && <button className="secondary" type="button" onClick={()=>{setEditingEmployee(null);setEmployeeForm({rut:'',firstName:'',lastName:'',position:''});}}>Cancelar edición</button>}</div></form></section></>}
+      {tab==='attendance'&&<section className="panel">
+        <div className="panel-head">
+          <div><h3>Historial y revisión de marcaciones</h3><p>Filtra los registros y revisa las marcaciones pendientes.</p></div>
+          <button className="secondary" onClick={()=>downloadCsv(filteredRecords)}><Download size={16}/> Exportar filtrados ({filteredRecords.length})</button>
+        </div>
+        <div className="attendance-filters">
+          <label>Desde<input type="date" value={attendanceFrom} onChange={e=>setAttendanceFrom(e.target.value)}/></label>
+          <label>Hasta<input type="date" value={attendanceTo} min={attendanceFrom || undefined} onChange={e=>setAttendanceTo(e.target.value)}/></label>
+          <label>Trabajador<select value={attendanceEmployee} onChange={e=>setAttendanceEmployee(e.target.value)}><option value="ALL">Todos los trabajadores</option>{employees.map(e=><option key={e.id} value={e.id}>{e.firstName} {e.lastName} · {e.rut}</option>)}</select></label>
+          <label>Estado<select value={attendanceStatus} onChange={e=>setAttendanceStatus(e.target.value)}><option value="ALL">Todos los estados</option><option value="PENDING_REVIEW">Pendiente de revisión</option><option value="CONFIRMED">Confirmada</option><option value="VOIDED">Anulada</option></select></label>
+          <button type="button" className="secondary" onClick={()=>{setAttendanceFrom('');setAttendanceTo('');setAttendanceStatus('ALL');setAttendanceEmployee('ALL');}}>Limpiar filtros</button>
+        </div>
+        <p className="filter-summary">Mostrando {filteredRecords.length} de {records.length} registros cargados. La API entrega como máximo 1.000 por consulta.</p>
+        <Records rows={filteredRecords} onReview={reviewAttendance} reviewBusy={reviewBusy} showReason/>
+      </section>}
+{tab==='deviceEvents'&&<section className="panel">
+  <div className="panel-head">
+    <div>
+      <h3>Eventos recibidos del lector biométrico</h3>
+      <p>Registro técnico separado de las marcaciones laborales.</p>
+    </div>
+    <button
+      className="secondary"
+      onClick={()=>void loadDeviceEvents()}
+      disabled={deviceEventsBusy}
+    >
+      <RefreshCw size={16}/> {deviceEventsBusy?'Actualizando…':'Actualizar'}
+    </button>
+  </div>
+  <div className="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha de recepción</th>
+          <th>ID del evento</th>
+          <th>Dispositivo</th>
+          <th>Resultado</th>
+          <th>Detalle</th>
+        </tr>
+      </thead>
+      <tbody>
+        {deviceEvents.map(event=><tr key={event.id}>
+          <td>{fmt(event.receivedAt)}</td>
+          <td>{event.eventId}</td>
+          <td>{event.deviceId}</td>
+          <td>
+            <span className={`status ${event.result==='PENDING_REVIEW'?'status-pending':event.result==='TEST_DISCARDED'?'status-voided':''}`}>
+              {event.result==='ACCEPTED'?'Aceptado':
+               event.result==='PENDING_REVIEW'?'Pendiente de revisión':
+               event.result==='TEST_DISCARDED'?'Prueba descartada':event.result}
+            </span>
+          </td>
+          <td>{event.details||'—'}</td>
+        </tr>)}
+      </tbody>
+    </table>
+    {!deviceEvents.length&&
+      <div className="empty">
+        {deviceEventsBusy?'Cargando eventos…':'No hay eventos del lector para mostrar.'}
+      </div>
+    }
+  </div>
+  <p className="filter-summary">
+    Se muestran hasta 500 eventos técnicos. Estos registros no son marcaciones de asistencia.
+  </p>
+</section>}
+
+      {tab==='users'&&<section className="panel">
+        <div className="panel-head">
+          <div>
+            <h3>Administración de usuarios</h3>
+            <p>Activa o desactiva cuentas y consulta sus permisos asignados.</p>
+          </div>
+          <button className="secondary" onClick={()=>void loadUsers()} disabled={!!userActionBusy}>
+            <RefreshCw size={16}/> Actualizar
+          </button>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Usuario</th><th>Tipo</th><th>Permisos</th><th>Estado</th><th>Acción</th></tr>
+            </thead>
+            <tbody>
+              {users.map(user=><tr key={user.id}>
+                <td>
+                  <b>{user.fullName}</b>
+                  <small className="subcell">{user.email}</small>
+                </td>
+                <td>{user.isSuperAdmin?'Superadministrador':'Usuario'}</td>
+                <td>{user.permissions?.length ? user.permissions.map(p=>p.code).join(', ') : user.isSuperAdmin?'Todos (superadministrador)':'Sin permisos asignados'}</td>
+                <td>
+                  <span className="status">{user.status==='ACTIVE'?'Activo':'Desactivado'}</span>
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={!!userActionBusy}
+                    onClick={()=>beginEditUser(user)}
+                  >
+                    Editar usuario
+                  </button>
+                  <button
+                    className={user.status==='ACTIVE'?'secondary':'primary'}
+                    disabled={!!userActionBusy}
+                    onClick={()=>void toggleUserStatus(user)}
+                  >
+                    {userActionBusy===user.id?'Procesando…':user.status==='ACTIVE'?'Desactivar':'Activar'}
+                  </button>
+                  {!user.isSuperAdmin&&<button
+                    type="button"
+                    className="secondary"
+                    disabled={!!userActionBusy}
+                    onClick={()=>beginEditUserPermissions(user)}
+                  >
+                    Editar permisos
+                  </button>}
+                </td>
+              </tr>)}
+            </tbody>
+          </table>
+          {!users.length&&<div className="empty">No hay usuarios para mostrar o no se pudieron cargar.</div>}
+        </div>
+
+        {editingUser&&<div className="panel permission-editor">
+          <div className="panel-head">
+            <div>
+              <h3>Editar usuario</h3>
+              <p>Modifica el nombre y correo. La contraseña es opcional si solo deseas actualizar el perfil.</p>
+            </div>
+            <button
+              type="button"
+              className="secondary"
+              disabled={!!userActionBusy}
+              onClick={()=>{
+                setEditingUser(null);
+                setUserEditForm({fullName:'',email:'',password:'',confirmPassword:''});
+              }}
+            >
+              Cancelar
+            </button>
+          </div>
+          <form className="employee-form" onSubmit={saveUserEdit}>
+            <label>
+              Nombre completo
+              <input
+                value={userEditForm.fullName}
+                onChange={e=>setUserEditForm({...userEditForm,fullName:e.target.value})}
+                minLength={2}
+                maxLength={120}
+                autoComplete="name"
+                required
+                disabled={!!userActionBusy}
+              />
+            </label>
+            <label>
+              Correo electrónico
+              <input
+                type="email"
+                value={userEditForm.email}
+                onChange={e=>setUserEditForm({...userEditForm,email:e.target.value})}
+                autoComplete="email"
+                required
+                disabled={!!userActionBusy}
+              />
+            </label>
+            <label>
+              Nueva contraseña
+              <input
+                type="password"
+                value={userEditForm.password}
+                onChange={e=>setUserEditForm({...userEditForm,password:e.target.value})}
+                minLength={12}
+                autoComplete="new-password"
+                placeholder="Mínimo 12 caracteres; dejar vacío para no cambiar"
+                disabled={!!userActionBusy}
+              />
+            </label>
+            <label>
+              Confirmar nueva contraseña
+              <input
+                type="password"
+                value={userEditForm.confirmPassword}
+                onChange={e=>setUserEditForm({...userEditForm,confirmPassword:e.target.value})}
+                minLength={12}
+                autoComplete="new-password"
+                placeholder="Repite la nueva contraseña"
+                disabled={!!userActionBusy}
+              />
+            </label>
+            <div className="permission-footer">
+              <span>La contraseña actual nunca se muestra.</span>
+              <button type="submit" className="primary" disabled={!!userActionBusy}>
+                {userActionBusy===editingUser.id?'Guardando…':'Guardar cambios'}
+              </button>
+            </div>
+          </form>
+        </div>}
+
+        {editingPermissionsUser&&<div className="panel permission-editor">
+          <div className="panel-head">
+            <div>
+              <h3>Permisos de {editingPermissionsUser.fullName}</h3>
+              <p>Selecciona únicamente las acciones que esta cuenta necesita. Los cambios reemplazan su lista actual de permisos.</p>
+            </div>
+            <button type="button" className="secondary" onClick={()=>setEditingPermissionsUser(null)} disabled={!!userActionBusy}>Cancelar</button>
+          </div>
+          <div className="permission-grid">
+            {permissionCatalog.map(permission=><label className="permission-option" key={permission.code}>
+              <input
+                type="checkbox"
+                checked={selectedPermissionCodes.includes(permission.code)}
+                disabled={!!userActionBusy}
+                onChange={event=>setSelectedPermissionCodes(current=>
+                  event.target.checked
+                    ? [...current,permission.code]
+                    : current.filter(code=>code!==permission.code)
+                )}
+              />
+              <span><b>{permission.description}</b><small>{permission.code}</small></span>
+            </label>)}
+          </div>
+          {!permissionCatalog.length&&<div className="empty">No se pudo cargar el catálogo de permisos. Pulsa Actualizar e inténtalo de nuevo.</div>}
+          <div className="permission-footer">
+            <span>{selectedPermissionCodes.length} permisos seleccionados</span>
+            <button type="button" className="primary" onClick={()=>void saveUserPermissions()} disabled={!!userActionBusy||!permissionCatalog.length}>
+              {userActionBusy===editingPermissionsUser.id?'Guardando…':'Guardar permisos'}
+            </button>
+          </div>
+        </div>}
+      </section>}
+      {tab==='organization'&&<>
+        <section className="stat-grid">
+          <Stat icon={<Users/>} label="Departamentos" value={String(departments.length)} hint="Guardados en MySQL"/>
+          <Stat icon={<LayoutDashboard/>} label="Sucursales" value={String(branches.length)} hint="Guardadas en MySQL"/>
+        </section>
+        <section className="panel">
+          <div className="panel-head">
+            <div><h3>Departamentos</h3><p>Organiza a los trabajadores por área.</p></div>
+            <button className="secondary" onClick={()=>void loadOrganization()} disabled={organizationBusy}><RefreshCw size={16}/> Actualizar</button>
+          </div>
+          <form className="employee-form" onSubmit={createDepartment}>
+            <label>Nombre del departamento
+              <input value={departmentName} onChange={e=>setDepartmentName(e.target.value)} minLength={2} required placeholder="Ej. Administración"/>
+            </label>
+            <button className="primary" disabled={organizationBusy}>Crear departamento</button>
+          </form>
+          <div className="table-wrap">
+            <table><thead><tr><th>Departamento</th><th>Estado</th><th>Trabajadores</th><th>Acciones</th></tr></thead>
+              <tbody>{departments.map(d=><tr key={d.id}>
+                <td><b>{d.name}</b></td>
+                <td><span className="status">{d.active ? 'Activo' : 'Inactivo'}</span></td>
+                <td>{d._count?.employees ?? 0}</td>
+                <td><div className="action-buttons">
+                  <button type="button" className="secondary" onClick={()=>void editDepartment(d)} disabled={organizationBusy}>Editar</button>
+                  <button type="button" className="secondary" onClick={()=>void toggleDepartment(d)} disabled={organizationBusy}>{d.active ? 'Desactivar' : 'Reactivar'}</button>
+                </div></td>
+              </tr>)}</tbody>
+            </table>
+            {!departments.length&&<div className="empty">No hay departamentos registrados.</div>}
+          </div>
+        </section>
+        <section className="panel">
+          <div className="panel-head"><div><h3>Sucursales</h3><p>Registra las ubicaciones de la empresa.</p></div></div>
+          <form className="employee-form" onSubmit={createBranch}>
+            <label>Nombre de la sucursal
+              <input value={branchForm.name} onChange={e=>setBranchForm({...branchForm,name:e.target.value})} minLength={2} required placeholder="Ej. Casa matriz"/>
+            </label>
+            <label>Dirección
+              <input value={branchForm.address} onChange={e=>setBranchForm({...branchForm,address:e.target.value})} placeholder="Calle, número y comuna"/>
+            </label>
+            <button className="primary" disabled={organizationBusy}>Crear sucursal</button>
+          </form>
+          <div className="table-wrap">
+            <table><thead><tr><th>Sucursal</th><th>Dirección</th><th>Estado</th><th>Trabajadores</th><th>Acciones</th></tr></thead>
+              <tbody>{branches.map(b=><tr key={b.id}>
+                <td><b>{b.name}</b></td>
+                <td>{b.address||'—'}</td>
+                <td><span className="status">{b.active ? 'Activo' : 'Inactivo'}</span></td>
+                <td>{b._count?.employees ?? 0}</td>
+                <td><div className="action-buttons">
+                  <button type="button" className="secondary" onClick={()=>void editBranch(b)} disabled={organizationBusy}>Editar</button>
+                  <button type="button" className="secondary" onClick={()=>void toggleBranch(b)} disabled={organizationBusy}>{b.active ? 'Desactivar' : 'Reactivar'}</button>
+                </div></td>
+              </tr>)}</tbody>
+            </table>
+            {!branches.length&&<div className="empty">No hay sucursales registradas.</div>}
+          </div>
+        </section>
+      </>}
+
+      {tab==='shifts'&&<>
+        <section className="panel">
+          <div className="panel-head">
+            <div><h3>Crear turno</h3><p>Define los horarios y la modalidad de marcación.</p></div>
+            <button className="secondary" onClick={()=>void loadShifts()} disabled={shiftBusy}><RefreshCw size={16}/> Actualizar</button>
+          </div>
+          <form className="employee-form" onSubmit={createShift}>
+            <label>Nombre del turno
+              <input value={shiftForm.name} onChange={e=>setShiftForm({...shiftForm,name:e.target.value})} minLength={2} required placeholder="Ej. Turno diurno"/>
+            </label>
+            <label>Hora de entrada
+              <input type="time" value={shiftForm.startTime} onChange={e=>setShiftForm({...shiftForm,startTime:e.target.value})} required/>
+            </label>
+            <label>Hora de salida
+              <input type="time" value={shiftForm.endTime} onChange={e=>setShiftForm({...shiftForm,endTime:e.target.value})} required/>
+            </label>
+            <label>Modalidad
+              <select value={shiftForm.mode} onChange={e=>setShiftForm({...shiftForm,mode:e.target.value as 'TWO_PUNCH'|'FOUR_PUNCH'})}>
+                <option value="FOUR_PUNCH">4 marcaciones (entrada, colación, regreso, salida)</option>
+                <option value="TWO_PUNCH">2 marcaciones (entrada y salida)</option>
+              </select>
+            </label>
+            {shiftForm.mode==='FOUR_PUNCH'&&<>
+              <label>Inicio de colación
+                <input type="time" value={shiftForm.breakStart} onChange={e=>setShiftForm({...shiftForm,breakStart:e.target.value})} required/>
+              </label>
+              <label>Fin de colación
+                <input type="time" value={shiftForm.breakEnd} onChange={e=>setShiftForm({...shiftForm,breakEnd:e.target.value})} required/>
+              </label>
+            </>}
+            <label>Tolerancia (minutos)
+              <input type="number" min="0" step="1" value={shiftForm.toleranceMinutes} onChange={e=>setShiftForm({...shiftForm,toleranceMinutes:e.target.value})} required/>
+            </label>
+            <label>
+              <span>El turno termina al día siguiente</span>
+              <input type="checkbox" checked={shiftForm.crossesMidnight} onChange={e=>setShiftForm({...shiftForm,crossesMidnight:e.target.checked})}/>
+            </label>
+            <button className="primary" disabled={shiftBusy}>Guardar turno</button>
+          </form>
+        </section>
+
+        <section className="panel">
+          <div className="panel-head"><div><h3>Asignar turno</h3><p>Selecciona un trabajador y el período de vigencia.</p></div></div>
+          <form className="employee-form" onSubmit={assignShift}>
+            <label>Turno
+              <select value={assignmentForm.shiftId} onChange={e=>setAssignmentForm({...assignmentForm,shiftId:e.target.value})} required>
+                <option value="">Selecciona un turno</option>
+                {shifts.filter(s=>s.active).map(s=><option key={s.id} value={s.id}>{s.name} ({s.startTime}–{s.endTime})</option>)}
+              </select>
+            </label>
+            <label>Trabajador activo
+              <select value={assignmentForm.employeeId} onChange={e=>setAssignmentForm({...assignmentForm,employeeId:e.target.value})} required>
+                <option value="">Selecciona un trabajador</option>
+                {employees.filter(e=>e.status==='ACTIVE').map(e=><option key={e.id} value={e.id}>{e.firstName} {e.lastName} — {e.rut}</option>)}
+              </select>
+            </label>
+            <label>Válido desde
+              <input type="date" value={assignmentForm.validFrom} onChange={e=>setAssignmentForm({...assignmentForm,validFrom:e.target.value})} required/>
+            </label>
+            <label>Válido hasta (opcional)
+              <input type="date" min={assignmentForm.validFrom||undefined} value={assignmentForm.validTo} onChange={e=>setAssignmentForm({...assignmentForm,validTo:e.target.value})}/>
+            </label>
+            <button className="primary" disabled={shiftBusy||!shifts.some(s=>s.active)||!employees.some(e=>e.status==='ACTIVE')}>Asignar turno</button>
+          </form>
+          {(!shifts.some(s=>s.active)||!employees.some(e=>e.status==='ACTIVE'))&&<p className="muted">Para asignar, debe existir al menos un turno activo y un trabajador activo.</p>}
+        </section>
+
+        <section className="panel">
+          <div className="panel-head"><div><h3>Turnos registrados</h3><p>Horarios y trabajadores asignados según los datos del servidor.</p></div>
+            <button className="secondary" onClick={() => void loadShifts()} disabled={shiftBusy}><RefreshCw size={16}/> Actualizar</button>
+          </div>
+          <div className="table-wrap">
+            <table><thead><tr><th>Turno</th><th>Horario</th><th>Colación</th><th>Modalidad</th><th>Tolerancia</th><th>Asignaciones</th></tr></thead>
+              <tbody>{shifts.map(s=><tr key={s.id}>
+                <td><b>{s.name}</b><small className="subcell">{s.active ? 'Activo' : 'Inactivo'} · {s.crossesMidnight?'Termina al día siguiente':'Mismo día'}</small></td>
+                <td>{s.startTime}–{s.endTime}</td>
+                <td>{s.breakStart&&s.breakEnd?`${s.breakStart}–${s.breakEnd}`:'No definida'}</td>
+                <td>{s.mode==='TWO_PUNCH'?'2 marcaciones':'4 marcaciones'}</td>
+                <td>{s.toleranceMinutes} min</td>
+                <td>
+                  {s.assignments?.length ?? 0}
+                  <div className="shift-actions">
+                    <button
+                      className="secondary"
+                      type="button"
+                      onClick={() => void setShiftActive(s)}
+                      disabled={shiftBusy}
+                      title="Cambiar el estado sin borrar el historial"
+                    >{s.active ? 'Desactivar turno' : 'Reactivar turno'}</button>
+                  </div>
+                </td>
+              </tr>)}</tbody>
+            </table>
+            {!shifts.length&&<div className="empty">No hay turnos registrados.</div>}
+          </div>
+          {shifts.some(s=>(s.assignments?.length ?? 0)>0)&&<div className="table-wrap">
+            <table><thead><tr><th>Turno</th><th>Trabajador</th><th>Desde</th><th>Hasta</th><th>Acciones</th></tr></thead>
+              <tbody>{shifts.flatMap(s=>(s.assignments||[]).map(a=><tr key={a.id}>
+                <td>{s.name}</td>
+                <td>{a.employee.firstName} {a.employee.lastName} ({a.employee.rut})</td>
+                <td>{new Date(a.validFrom).toLocaleDateString('es-CL')}</td>
+                <td>{a.validTo?new Date(a.validTo).toLocaleDateString('es-CL'):'Sin fecha de término'}</td>
+                <td>
+                  {a.validTo
+                    ? <span className="subcell">Vigencia finalizada</span>
+                    : <button
+                        className="secondary"
+                        type="button"
+                        onClick={() => void closeShiftAssignment(s,a)}
+                        disabled={shiftBusy}
+                      >Finalizar asignación</button>}
+                </td>
+              </tr>))}</tbody>
+            </table>
+          </div>}
+        </section>
+      </>}
+
+      <footer>Asistencia · Base de desarrollo · Requiere revisión de seguridad y normativa antes de uso oficial.</footer>
+    </main>
+  </div>;
+}
+function Stat({icon,label,value,hint}:{icon:React.ReactNode,label:string,value:string,hint:string}) { return <div className="stat"><div className="stat-top"><span className="stat-icon">{icon}</span><span className="stat-hint">{hint}</span></div><p>{label}</p><strong>{value}</strong></div>; }
+function Records({rows,onReview,reviewBusy='',showReason=false}:{rows:RecordRow[];onReview?:(record:RecordRow,status:'CONFIRMED'|'VOIDED')=>void;reviewBusy?:string;showReason?:boolean}) {
+  const labels:any={ENTRY:'Entrada',BREAK_START:'Salida a colación',BREAK_END:'Regreso de colación',EXIT:'Salida final'};
+  const methods:any={FINGERPRINT:'Huella',PIN:'PIN',ADMIN_MANUAL:'Manual'};
+  const statuses:any={CONFIRMED:'Confirmada',PENDING_REVIEW:'Pendiente de revisión',VOIDED:'Anulada'};
+  return <div className="table-wrap"><table><thead><tr><th>Trabajador</th><th>Tipo</th><th>Fecha y hora</th><th>Método</th><th>Estado</th>{showReason&&<><th>Motivo original</th><th>Creada por</th><th>Revisión y auditoría</th></>}{onReview&&<th>Acciones</th>}</tr></thead><tbody>{rows.map(r=><tr key={r.id}>
+    <td><b>{r.employee?.firstName} {r.employee?.lastName}</b><small className="subcell">{r.employee?.rut}</small></td>
+    <td>{labels[r.type]||r.type}</td><td>{fmt(r.occurredAt)}</td><td>{methods[r.method]||r.method}</td>
+    <td><span className={`status ${r.status==='PENDING_REVIEW'?'status-pending':r.status==='VOIDED'?'status-voided':''}`}>{statuses[r.status]||r.status}</span></td>
+    {showReason&&<>
+      <td className="reason-cell">
+  {r.manualReason ||
+    r.auditTrail?.find(
+      log => log.action === 'BIOMETRIC_PUNCH_PENDING_REVIEW'
+    )?.reason ||
+    '—'}
+</td>
+      <td className="reason-cell">
+        {(() => {
+          const createdEvent = r.auditTrail?.find(log => log.action === 'ATTENDANCE_MANUAL_CREATED');
+          const creator = r.creator || createdEvent?.user;
+          return <>
+            <b>{creator?.fullName || 'No disponible'}</b>
+            <small className="subcell">{creator?.email || 'Sin correo registrado'}</small>
+            {createdEvent && <small className="subcell">Evento: {fmt(createdEvent.createdAt)}</small>}
+          </>;
+        })()}
+      </td>
+      <td className="reason-cell">
+        {(() => {
+          const reviewEvent = [...(r.auditTrail || [])].reverse().find(
+            log => log.action === 'ATTENDANCE_REVIEW_CONFIRMED' ||
+                   log.action === 'ATTENDANCE_REVIEW_VOIDED'
+          );
+          if (!reviewEvent) {
+            return <span className="subcell">Sin revisión registrada</span>;
+          }
+          const confirmed = reviewEvent.action === 'ATTENDANCE_REVIEW_CONFIRMED';
+          return <>
+            <b>{confirmed ? 'Confirmada por' : 'Anulada por'}</b>
+            <small className="subcell">{reviewEvent.user?.fullName || 'Usuario no disponible'}</small>
+            <small className="subcell">{fmt(reviewEvent.createdAt)}</small>
+            <small className="subcell">Motivo: {reviewEvent.reason || 'No registrado'}</small>
+          </>;
+        })()}
+      </td>
+    </>}
+    {onReview&&<td>{r.status==='PENDING_REVIEW'?<div className="action-buttons"><button type="button" className="secondary" disabled={reviewBusy===r.id} onClick={()=>void onReview(r,'CONFIRMED')}>Confirmar</button><button type="button" className="danger-button" disabled={reviewBusy===r.id} onClick={()=>void onReview(r,'VOIDED')}>Anular</button></div>:<span className="subcell">Sin acciones</span>}</td>}
+  </tr>)}</tbody></table>{!rows.length&&<div className="empty">No hay marcaciones para mostrar con estos filtros.</div>}</div>;
+}
+function downloadCsv(rows:RecordRow[]) { const lines=[['Trabajador','RUT','Tipo','Fecha','Método','Estado'],...rows.map(r=>[`${r.employee?.firstName||''} ${r.employee?.lastName||''}`,r.employee?.rut||'',r.type,r.occurredAt,r.method,r.status])]; const csv=lines.map(line=>line.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(';')).join('\r\n'); const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'})); const a=document.createElement('a'); a.href=url; a.download='marcaciones.csv'; a.click(); URL.revokeObjectURL(url); }
