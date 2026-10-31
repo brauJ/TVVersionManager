@@ -1,0 +1,334 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Headers,
+  Body,
+  BadRequestException,
+  ConflictException,
+  UnauthorizedException,
+  ServiceUnavailableException,
+  UseGuards,
+} from '@nestjs/common';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { PermissionsGuard } from './permissions.guard';
+import { RequirePermissions } from './permissions.decorator';
+import { ApiExcludeController } from '@nestjs/swagger';
+import { createHash, timingSafeEqual } from 'node:crypto';
+import { IsISO8601, IsString, MaxLength, MinLength } from 'class-validator';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from './prisma.service';
+
+class BiometricPunchDto {
+  @IsString()
+  @MinLength(8)
+  @MaxLength(190)
+  eventId!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(190)
+  deviceTemplateId!: string;
+
+  @IsISO8601()
+  occurredAt!: string;
+}
+
+@ApiExcludeController()
+@Controller('device')
+export class BiometricDeviceController {
+  constructor(private readonly prisma: PrismaService) {}
+
+  private verifySecret(received: string | undefined, storedHash: string): boolean {
+    if (!received || received.length < 32 || received.length > 512) {
+      return false;
+    }
+
+    const receivedHash = createHash('sha256').update(received, 'utf8').digest();
+    const expected = Buffer.from(storedHash, 'hex');
+
+    if (expected.length !== receivedHash.length) {
+      return false;
+    }
+
+    return timingSafeEqual(receivedHash, expected);
+  }
+
+  private async authenticate(deviceId: string, secret: string | undefined) {
+    if (!deviceId || deviceId.length > 190 || !secret) {
+      throw new UnauthorizedException('Dispositivo no autenticado');
+    }
+
+    const device = await this.prisma.biometricDevice.findUnique({
+      where: { id: deviceId },
+      select: { id: true, active: true, deviceKeyHash: true },
+    });
+
+    if (!device || !device.active || !this.verifySecret(secret, device.deviceKeyHash)) {
+      throw new UnauthorizedException('Dispositivo no autenticado');
+    }
+
+    return device;
+  }
+
+
+  @Post('punch')
+  async punch(
+    @Headers('x-device-id') deviceId: string | undefined,
+    @Headers('x-device-secret') secret: string | undefined,
+    @Body() dto: BiometricPunchDto,
+  ) {
+    const device = await this.authenticate(deviceId ?? '', secret);
+
+    const occurredAt = new Date(dto.occurredAt);
+    if (!Number.isFinite(occurredAt.getTime()) ||
+        occurredAt.getTime() > Date.now() + 60_000 ||
+        occurredAt.getTime() < Date.now() - 7 * 24 * 60 * 60 * 1000) {
+      throw new BadRequestException(
+        'La fecha de la marcación no es válida o está fuera del intervalo permitido',
+      );
+    }
+
+    const credential = await this.prisma.biometricCredential.findUnique({
+      where: { deviceTemplateId: dto.deviceTemplateId },
+      include: { employee: true },
+    });
+
+    if (!credential || !credential.active || credential.revokedAt ||
+        credential.employee.status !== 'ACTIVE') {
+      throw new BadRequestException(
+        'No existe una credencial biométrica activa para un trabajador activo',
+      );
+    }
+
+    // Fecha laboral de Chile, independiente de la zona horaria del contenedor.
+    const dateParts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Santiago',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(occurredAt);
+    const part = (type: string) => dateParts.find(p => p.type === type)?.value;
+    const localDate = `${part('year')}-${part('month')}-${part('day')}`;
+    const workDate = new Date(`${localDate}T00:00:00.000Z`);
+
+    try {
+      return await this.prisma.$transaction(async tx => {
+        const priorEvent = await tx.deviceEvent.findUnique({
+          where: { eventId: dto.eventId },
+        });
+
+        if (priorEvent) {
+          if (priorEvent.deviceId !== device.id) {
+            throw new ConflictException('El identificador del evento ya fue utilizado');
+          }
+          return {
+            ok: true,
+            duplicate: true,
+            eventId: dto.eventId,
+            result: priorEvent.result,
+          };
+        }
+
+        const assignment = await tx.shiftAssignment.findFirst({
+          where: {
+            employeeId: credential.employeeId,
+            validFrom: { lte: occurredAt },
+            OR: [{ validTo: null }, { validTo: { gte: occurredAt } }],
+            shift: { active: true },
+          },
+          include: { shift: true },
+          orderBy: { validFrom: 'desc' },
+        });
+
+        const session = await tx.workSession.findUnique({
+          where: {
+            employeeId_workDate: {
+              employeeId: credential.employeeId,
+              workDate,
+            },
+          },
+          include: {
+            records: {
+              where: { status: { not: 'VOIDED' } },
+              orderBy: { occurredAt: 'asc' },
+            },
+          },
+        });
+
+        const expectedTypes = assignment?.shift.mode === 'TWO_PUNCH'
+          ? ['ENTRY', 'EXIT'] as const
+          : ['ENTRY', 'BREAK_START', 'BREAK_END', 'EXIT'] as const;
+
+        const existingRecords = session?.records ?? [];
+        const expectedType = expectedTypes[existingRecords.length];
+        const invalidSequence =
+          !assignment ||
+          !expectedType ||
+          existingRecords.some(r => r.status === 'PENDING_REVIEW') ||
+          (existingRecords.length > 0 &&
+            occurredAt.getTime() <= existingRecords[existingRecords.length - 1].occurredAt.getTime());
+
+        const result = invalidSequence ? 'PENDING_REVIEW' : 'ACCEPTED';
+
+        await tx.deviceEvent.create({
+          data: {
+            eventId: dto.eventId,
+            deviceId: device.id,
+            result,
+            details: invalidSequence
+              ? 'Secuencia o turno requiere revisión'
+              : `Tipo calculado: ${expectedType}`,
+          },
+        });
+
+        await tx.biometricDevice.update({
+          where: { id: device.id },
+          data: { lastSeenAt: new Date() },
+        });
+
+        if (invalidSequence) {
+          await tx.auditLog.create({
+            data: {
+              action: 'BIOMETRIC_PUNCH_PENDING_REVIEW',
+              entityType: 'DeviceEvent',
+              entityId: dto.eventId,
+              reason: 'Marcación biométrica requiere revisión: turno ausente, secuencia incompleta o tiempo fuera de orden.',
+              afterJson: {
+                deviceId: device.id,
+                employeeId: credential.employeeId,
+                eventId: dto.eventId,
+                occurredAt: occurredAt.toISOString(),
+                workDate: localDate,
+              },
+            },
+          });
+
+          return {
+            ok: true,
+            eventId: dto.eventId,
+            result: 'PENDING_REVIEW',
+            message: 'Evento registrado; requiere revisión administrativa.',
+          };
+        }
+
+        const activeSession = session ?? await tx.workSession.create({
+          data: {
+            employeeId: credential.employeeId,
+            workDate,
+            shiftId: assignment!.shiftId,
+          },
+          include: { records: true },
+        });
+
+        const record = await tx.attendanceRecord.create({
+          data: {
+            eventId: dto.eventId,
+            employeeId: credential.employeeId,
+            sessionId: activeSession.id,
+            type: expectedType!,
+            method: 'FINGERPRINT',
+            status: 'CONFIRMED',
+            occurredAt,
+            deviceId: device.id,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            action: 'BIOMETRIC_PUNCH_CONFIRMED',
+            entityType: 'AttendanceRecord',
+            entityId: record.id,
+            reason: 'Marcación biométrica recibida desde un dispositivo autenticado.',
+            afterJson: {
+              eventId: dto.eventId,
+              deviceId: device.id,
+              employeeId: credential.employeeId,
+              type: expectedType,
+              occurredAt: occurredAt.toISOString(),
+            },
+          },
+        });
+
+        return {
+          ok: true,
+          eventId: dto.eventId,
+          result: 'ACCEPTED',
+          type: expectedType,
+          attendanceRecordId: record.id,
+        };
+      }, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 10000,
+        timeout: 15000,
+      });
+    } catch (error: unknown) {
+      if (error instanceof ConflictException || error instanceof BadRequestException) {
+        throw error;
+      }
+      if (error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002') {
+        const originalEvent = await this.prisma.deviceEvent.findUnique({
+          where: { eventId: dto.eventId },
+          select: { deviceId: true, result: true },
+        });
+
+        if (originalEvent && originalEvent.deviceId === device.id) {
+          return {
+            ok: true,
+            duplicate: true,
+            eventId: dto.eventId,
+            result: originalEvent.result,
+          };
+        }
+
+        return {
+          ok: true,
+          duplicate: true,
+          eventId: dto.eventId,
+          result: 'DUPLICATE',
+        };
+      }
+      throw new ServiceUnavailableException(
+        'No se pudo procesar la marcación. No repitas el evento con un ID nuevo.',
+      );
+    }
+  }
+
+  @Get('status')
+  async status(
+    @Headers('x-device-id') deviceId: string | undefined,
+    @Headers('x-device-secret') secret: string | undefined,
+  ) {
+    const device = await this.authenticate(deviceId ?? '', secret);
+
+    try {
+      await this.prisma.biometricDevice.update({
+        where: { id: device.id },
+        data: { lastSeenAt: new Date() },
+      });
+    } catch {
+      throw new ServiceUnavailableException('No se pudo actualizar el estado del dispositivo');
+    }
+
+    return { ok: true, deviceId: device.id, status: 'authenticated' };
+  }
+
+  @Get('events')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('attendance.read')
+  async listEvents() {
+    return this.prisma.deviceEvent.findMany({
+      select: {
+        id: true,
+        eventId: true,
+        deviceId: true,
+        receivedAt: true,
+        result: true,
+        details: true,
+      },
+      orderBy: { receivedAt: 'desc' },
+      take: 500,
+    });
+  }
+}

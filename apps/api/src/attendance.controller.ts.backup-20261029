@@ -1,0 +1,198 @@
+import { Body, Controller, Get, Patch, Param, Post, Query, Req, UseGuards, BadRequestException, NotFoundException } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import { IsEnum, IsISO8601, IsOptional, IsString, MinLength, IsIn } from 'class-validator';
+import { PrismaService } from './prisma.service';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { PermissionsGuard } from './permissions.guard';
+import { RequirePermissions } from './permissions.decorator';
+
+
+class ReviewAttendanceDto {
+  @IsIn(['CONFIRMED', 'VOIDED'])
+  status!: 'CONFIRMED' | 'VOIDED';
+
+  @IsString()
+  @MinLength(8)
+  reason!: string;
+}
+
+class ManualAttendanceDto {
+  @IsString() employeeId!: string;
+  @IsEnum(['ENTRY', 'BREAK_START', 'BREAK_END', 'EXIT']) type!: 'ENTRY'|'BREAK_START'|'BREAK_END'|'EXIT';
+  @IsISO8601() occurredAt!: string;
+  @IsString() @MinLength(8) reason!: string;
+}
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@ApiTags('attendance')
+@Controller('attendance')
+export class AttendanceController {
+  constructor(private prisma: PrismaService) {}
+  @Get()
+  @RequirePermissions('attendance.read')
+  async list(@Query('from') from?: string, @Query('to') to?: string, @Query('employeeId') employeeId?: string) {
+    const where: any = {};
+    if (employeeId) where.employeeId = employeeId;
+    if (from || to) where.occurredAt = { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) };
+
+    const records = await this.prisma.attendanceRecord.findMany({
+      where,
+      include: { employee: true },
+      orderBy: { occurredAt: 'desc' },
+      take: 1000
+    });
+
+    if (!records.length) return [];
+
+    const auditLogs = await this.prisma.auditLog.findMany({
+      where: {
+        entityType: 'AttendanceRecord',
+        entityId: { in: records.map(record => record.id) },
+        action: {
+          in: [
+            'ATTENDANCE_MANUAL_CREATED',
+            'ATTENDANCE_REVIEW_CONFIRMED',
+            'ATTENDANCE_REVIEW_VOIDED'
+          ]
+        }
+      },
+      select: {
+        entityId: true,
+        action: true,
+        reason: true,
+        createdAt: true,
+        user: { select: { id: true, fullName: true, email: true } }
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    // Recupera los usuarios que crearon las marcaciones, incluidos
+    // los registros que no tengan un evento de auditoría histórico.
+    const creatorIds = [...new Set(
+      records
+        .map(record => record.createdByUserId)
+        .filter((id): id is string => Boolean(id))
+    )];
+
+    const creators = creatorIds.length
+      ? await this.prisma.user.findMany({
+          where: { id: { in: creatorIds } },
+          select: { id: true, fullName: true, email: true }
+        })
+      : [];
+
+    const creatorsById = new Map(creators.map(user => [user.id, user]));
+
+    const logsByRecord = new Map<string, typeof auditLogs>();
+    for (const log of auditLogs) {
+      if (!log.entityId) continue;
+      const current = logsByRecord.get(log.entityId) ?? [];
+      current.push(log);
+      logsByRecord.set(log.entityId, current);
+    }
+
+    return records.map(record => ({
+      ...record,
+      creator: record.createdByUserId
+        ? creatorsById.get(record.createdByUserId) ?? null
+        : null,
+      auditTrail: (logsByRecord.get(record.id) ?? []).map(log => ({
+        action: log.action,
+        reason: log.reason,
+        createdAt: log.createdAt,
+        user: log.user
+      }))
+    }));
+  }
+
+  @Patch(':id/review')
+  @RequirePermissions('attendance.review')
+  async review(
+    @Param('id') id: string,
+    @Body() dto: ReviewAttendanceDto,
+    @Req() req: any
+  ) {
+    const reason = dto.reason.trim();
+    if (reason.length < 8) {
+      throw new BadRequestException('El motivo debe tener al menos 8 caracteres');
+    }
+
+    return this.prisma.$transaction(async tx => {
+      const before = await tx.attendanceRecord.findUnique({
+        where: { id },
+        include: { employee: true }
+      });
+
+      if (!before) {
+        throw new NotFoundException('Marcación no encontrada');
+      }
+      if (before.status !== 'PENDING_REVIEW') {
+        throw new BadRequestException(
+          'Solo se pueden revisar marcaciones pendientes de revisión'
+        );
+      }
+
+      const changed = await tx.attendanceRecord.updateMany({
+        where: { id, status: 'PENDING_REVIEW' },
+        data: { status: dto.status }
+      });
+
+      if (changed.count !== 1) {
+        throw new BadRequestException(
+          'La marcación cambió mientras se revisaba. Actualiza la lista'
+        );
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId: req.user.sub,
+          action: dto.status === 'CONFIRMED'
+            ? 'ATTENDANCE_REVIEW_CONFIRMED'
+            : 'ATTENDANCE_REVIEW_VOIDED',
+          entityType: 'AttendanceRecord',
+          entityId: id,
+          reason,
+          beforeJson: {
+            status: before.status,
+            type: before.type,
+            occurredAt: before.occurredAt.toISOString()
+          },
+          afterJson: {
+            status: dto.status,
+            reason
+          }
+        }
+      });
+
+      return tx.attendanceRecord.findUnique({
+        where: { id },
+        include: { employee: true }
+      });
+    });
+  }
+
+  @Post('manual')
+  @RequirePermissions('attendance.manual')
+  async manual(@Body() dto: ManualAttendanceDto, @Req() req: any) {
+    const adminUserId: string = req.user.sub;
+    if (!dto.reason.trim()) throw new BadRequestException('El motivo es obligatorio');
+    const employee = await this.prisma.employee.findUnique({ where: { id: dto.employeeId } });
+    if (!employee || employee.status !== 'ACTIVE') throw new BadRequestException('Trabajador no encontrado o inactivo');
+    const id = `manual_${crypto.randomUUID()}`;
+    return this.prisma.$transaction(async tx => {
+      const record = await tx.attendanceRecord.create({ data: {
+        eventId: id, employeeId: dto.employeeId, type: dto.type,
+        method: 'ADMIN_MANUAL', status: 'CONFIRMED', occurredAt: new Date(dto.occurredAt),
+        manualReason: dto.reason.trim(), createdByUserId: adminUserId
+      }});
+      await tx.manualAttendanceChange.create({ data: {
+        attendanceRecordId: record.id, action: 'CREATED', reason: dto.reason.trim(), adminUserId,
+        afterJson: { type: dto.type, occurredAt: dto.occurredAt, method: 'ADMIN_MANUAL' }
+      }});
+      await tx.auditLog.create({ data: {
+        userId: adminUserId, action: 'ATTENDANCE_MANUAL_CREATED', entityType: 'AttendanceRecord',
+        entityId: record.id, reason: dto.reason.trim(), afterJson: { type: dto.type, occurredAt: dto.occurredAt }
+      }});
+      return record;
+    });
+  }
+}
